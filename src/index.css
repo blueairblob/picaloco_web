@@ -9,10 +9,20 @@
   --accent: #4f46e5;
   --accent-foreground: #ffffff;
   --radius: 1rem;
+  color-scheme: light dark;
 }
 
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* System preference applies unless the user has explicitly picked a theme (data-theme). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --background: #111318;
     --foreground: #e5e7eb;
     --muted: #9ca3af;
@@ -21,6 +31,27 @@
     --accent: #818cf8;
     --accent-foreground: #111318;
   }
+}
+
+/* An explicit choice always wins, in both directions. */
+:root[data-theme='dark'] {
+  --background: #111318;
+  --foreground: #e5e7eb;
+  --muted: #9ca3af;
+  --border: #2a2d36;
+  --surface: #191c22;
+  --accent: #818cf8;
+  --accent-foreground: #111318;
+}
+
+:root[data-theme='light'] {
+  --background: #f8f9fa;
+  --foreground: #1f2937;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --surface: #ffffff;
+  --accent: #4f46e5;
+  --accent-foreground: #ffffff;
 }
 
 * {
