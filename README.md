@@ -4,6 +4,9 @@ A public web tool to search and browse the RAT photo archive, keyed on `image_no
 much simpler alternative to the over-specced, unfinished `trainpixelfolio` mobile app — see
 `filemaker_sync/devlog/worksheet.md` Session 14 for the full backstory.
 
+**Live at https://picaloco-web.vercel.app.** For a full rebuild-from-scratch guide (backend setup,
+deployment, troubleshooting), see [`DEVOPS.md`](./DEVOPS.md).
+
 ## Stack
 
 Vite + React + TypeScript + Tailwind CSS 4 + react-router + `@supabase/supabase-js` + React Query.
@@ -42,10 +45,8 @@ src/
   pages/               SearchPage (/), PhotoDetailPage (/photo/:imageNo), NotFoundPage
 ```
 
-## Known gaps (as of initial scaffold)
+## Known gaps
 
-- No automated tests — verify manually per the smoke-test list in the approved plan
-  (`~/.claude/plans/linked-puzzling-phoenix.md` on the machine that built this).
-- Not yet deployed to Vercel.
-- Not yet visually verified in a browser (build/typecheck pass, and the underlying queries are
-  proven against live data, but no interactive click-through has happened yet).
+See `DEVOPS.md` §8 for the current, maintained list (dropdown truncation on large facets, sparse
+real-image coverage, no automated tests). Both deploy and browser verification are done — this
+section used to say otherwise when the app was first scaffolded.
