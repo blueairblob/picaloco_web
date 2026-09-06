@@ -12,20 +12,20 @@ it is.
 
 ## 1. System map
 
-Three things have to work together for `picaloco_web` to function. None of them live in this repo.
+Two things have to work together for `picaloco_web` to function. Neither lives in this repo.
 
 ```
-┌─────────────────────┐     ┌──────────────────────────┐     ┌───────────────────────────┐
-│  picaloco_web (this  │     │  Self-hosted Supabase      │     │  A separate Supabase       │
-│  repo) — static site │────▶│  ("oci"), schema `rat`     │     │  project's public Storage  │
-│  on Vercel           │     │  — metadata & search       │     │  bucket — real images      │
-└─────────────────────┘     └──────────────────────────┘     └───────────────────────────┘
+┌─────────────────────┐     ┌────────────────────────────────┐
+│ picaloco_web (this  │     │  Self-hosted Supabase           │
+│ repo) — static site │───> │  ("oci"), schema 'rat' + Storage│
+│ on Vercel           │     │  — metadata, search, AND images │
+└─────────────────────┘     └────────────────────────────────┘
                                         ▲
                                         │ populated by
                              ┌──────────────────────────┐
-                             │  filemaker_sync (sibling  │
-                             │  repo) — the migration    │
-                             │  pipeline, FileMaker→rat  │
+                             │  filemaker_sync (sibling │
+                             │  repo) — the migration   │
+                             │  pipeline, FileMaker→rat │
                              └──────────────────────────┘
 ```
 
@@ -34,15 +34,17 @@ Three things have to work together for `picaloco_web` to function. None of them 
 - **The "oci" Supabase instance**: self-hosted (Docker Compose, the standard Supabase self-host
   stack — Postgres, PostgREST, Storage, Studio, etc.), reachable only over Tailscale by hostname,
   made public via **Tailscale Funnel**. Holds the `rat` schema, which `filemaker_sync` populates
-  from the RAT charity's FileMaker Pro archive (~141k photo records, growing). This is the **only**
-  live, current data source for search/metadata.
-- **The images project**: a *different*, ordinary cloud Supabase.com project, used only for its
-  Storage bucket (`picaloco/images/`). It holds ~1,000 real thumbnail `.webp` files — a small pilot
-  batch, not the whole archive. It is otherwise unrelated to `oci`; its own Postgres database (a
-  `dev` schema, an old frozen copy of the catalog) is **not** used by this app.
+  from the RAT charity's FileMaker Pro archive (~141k photo records, growing) — the single,
+  current source for both search/metadata **and** images. As of 2026-09-06 this also hosts every
+  real photo (1,499 `.webp` files, a partial batch of the ~141k catalog rows, not the whole
+  archive — growing over time as more get digitised) — migrated from a separate old Supabase.com
+  cloud project via `filemaker_sync`'s `migrate_storage_images_from_cloud.py` (one-off cutover) and
+  kept current going forward via `upload_images_oci.py` (the durable pipeline, wired into
+  `filemaker_sync`'s GUI as "Upload Images"). See `filemaker_sync/devlog/worksheet.md` Session 15
+  for the full story — that old cloud project is no longer used by this app at all.
 - **`filemaker_sync`** (sibling repo, public): the migration pipeline. Not part of this app's
-  runtime at all — it's what keeps `oci`'s `rat` schema populated and current. See its own
-  `CLAUDE.md` and `devlog/worksheet.md` for that side of the system.
+  runtime at all — it's what keeps `oci`'s `rat` schema and Storage populated and current. See its
+  own `CLAUDE.md` and `devlog/worksheet.md` for that side of the system.
 
 **If you only need to redeploy the web app** (backend already exists and is healthy): skip to
 §4 (scaffold) is not needed — just clone this repo and go to §6 (deploy).
@@ -227,7 +229,7 @@ Copy `.env.example` to `.env.local` and fill in:
 |---|---|---|
 | `VITE_SUPABASE_URL` | The public `oci` Funnel URL | `https://<oci-host>.<tailnet-name>.ts.net` — ask the `oci` owner for the exact hostname if unknown |
 | `VITE_SUPABASE_ANON_KEY` | The `oci` project's anon (public) JWT | Supabase Studio → Settings → API, on the `oci` instance. This key is meant to be public — it ships in the browser bundle either way — but scope its grants per §3.2, not this key's secrecy, as the real security boundary |
-| `VITE_IMAGES_BASE_URL` | Public Storage URL prefix for images | `https://<images-project-ref>.supabase.co/storage/v1/object/public/picaloco/images` — see §1, this is a *different* Supabase project than `oci` |
+| `VITE_IMAGES_BASE_URL` | Public Storage URL prefix for images | `https://<oci-host>.<tailnet-name>.ts.net/storage/v1/object/public/picaloco/images` — same `oci` instance as `VITE_SUPABASE_URL` now (migrated from a separate cloud project 2026-09-06, see §1) |
 
 None of these are secret in the traditional sense (all three are embedded in the public JS bundle
 of a deployed site) — but keep them in `.env.local` (gitignored) rather than committed, as normal
@@ -297,9 +299,10 @@ Notes from experience:
 
 ## 8. Known issues / deliberately deferred
 
-- **Only ~1,000 of ~141,244 catalog rows have a real photo.** The rest render a clean "not yet
-  available" placeholder — this is a real data gap (most archive images were never uploaded
-  anywhere), not a bug in this app.
+- **Only a small, growing fraction of ~141,244 catalog rows have a real photo** (~1,499 as of
+  2026-09-06, up from ~1,003 the same day — check current count, it may keep growing). The rest
+  render a clean "not yet available" placeholder — this is a real data gap (most archive images
+  were never uploaded anywhere), not a bug in this app.
 - **`Location`/`Organisation`/`Route` filter dropdowns are capped at ~1,000 options** by
   PostgREST's default row limit, against real counts of ~14,178 / ~1,520 / ~2,874. `Category`,
   `Country`, `Collection`, and `Photographer` are all small enough to be unaffected. Search itself
@@ -320,7 +323,7 @@ Notes from experience:
 |---|---|---|
 | Blank page, console error about missing env vars | `.env.local` not set up | Copy `.env.example`, fill in real values, restart `npm run dev` |
 | Search returns nothing, ever | `mobile_catalog_view` missing or `anon` grants revoked entirely | Run the §3 checks/SQL |
-| Images never load, even for known-good `image_no`s | `VITE_IMAGES_BASE_URL` wrong, or that separate Supabase project is paused/deleted | Confirm the URL directly with `curl`; check that project's dashboard for a paused-project banner |
+| Images never load, even for known-good `image_no`s | `VITE_IMAGES_BASE_URL` wrong, or `oci`'s Funnel/Storage is down | Confirm the URL directly with `curl` |
 | A shared/bookmarked `/photo/...` link 404s but `/` works | Missing `vercel.json` rewrite | See §6.2's last note |
 | `vercel env add` hangs or errors on a JWT-looking value | Needs an explicit `--type` | Add `--type config --yes` |
 | `vercel link`/`vercel git connect` says "Failed to connect ... to project" | Vercel's GitHub App isn't authorized for this repo | See §6.2's GitHub Apps fix |

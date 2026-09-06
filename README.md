@@ -26,9 +26,11 @@ npm run dev
   view — see its definition in the `filemaker_sync` worksheet if it ever needs recreating) plus a
   handful of small lookup tables for facet dropdowns. The `anon` role is scoped to exactly these —
   it does **not** have access to raw `rat.catalog` (which holds non-public columns like `valuation`).
-- **Images**: a *separate* Supabase project's public storage bucket (`VITE_IMAGES_BASE_URL`) — no
-  key needed, plain public GET. Only ~1,000 of the ~141k catalog rows have a real image today; the
-  rest show a "not yet available" placeholder.
+- **Images**: `oci`'s Storage now too (`VITE_IMAGES_BASE_URL`, same instance as the metadata) — no
+  key needed, plain public GET. Migrated from a separate old cloud project on 2026-09-06 (see
+  `filemaker_sync/devlog/worksheet.md` Session 15) — that project is no longer used. Only a small,
+  growing fraction of the ~141k catalog rows have a real image today (1,499 as of the migration);
+  the rest show a "not yet available" placeholder.
 
 ## Project structure
 
