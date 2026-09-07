@@ -329,3 +329,47 @@ Notes from experience:
 | `vercel env add` hangs or errors on a JWT-looking value | Needs an explicit `--type` | Add `--type config --yes` |
 | `vercel link`/`vercel git connect` says "Failed to connect ... to project" | Vercel's GitHub App isn't authorized for this repo | See §6.2's GitHub Apps fix |
 | An AI coding agent's direct DB/network commands get silently blocked | Expected — see the note at the end of §3.3 | Have a human run the exact command instead |
+
+---
+
+## 10. Production reliability (on the `oci` host)
+
+Confirmed 2026-09-07, live (a real reboot was performed as the test, not simulated):
+
+- **Reboot resilience: good, no manual steps needed.** All Docker containers already run with
+  `restart: unless-stopped`, and both `docker` and `tailscaled` are enabled on boot. A full host
+  reboot brought every container back up automatically *and* restored the Tailscale Funnel config
+  with zero manual re-run — `tailscale funnel status` showed it active again within ~20 seconds of
+  the host coming back, no `tailscale funnel ...` command needed after boot.
+- **Backups: local-only, automated, cron-driven.** `~/bin/rat-backup.sh` on the `oci` host (as user
+  `huey`, no root needed — Postgres dumps via `docker exec supabase-db pg_dump -U supabase_admin`,
+  which authenticates locally inside the container with no password required; Storage backups via
+  `docker exec supabase-storage tar ...` against `/var/lib/storage`):
+  - `rat-backup.sh db` — nightly at 02:17, `pg_dump -Fc` of the `rat` + `rat_migration` schemas to
+    `~/backups/rat/db/`, rotated to the last 14 days. ~30MB per dump.
+  - `rat-backup.sh storage` — weekly (Sunday 03:23, images are static so daily full copies would be
+    wasteful) tar+gzip of the whole Storage volume to `~/backups/rat/storage/`, keeps the last 4.
+    ~550MB per backup.
+  - Both wired via `crontab -l` on that host; `cron` itself confirmed enabled+active.
+  - **Known limitation, accepted deliberately**: backups are local to the same disk as the data
+    they protect. This guards against accidental deletion, a bad migration, or human error — **not**
+    against a whole-disk/host failure, which would take the backups down with the data. Revisit
+    (rsync/rclone to a second location, or a cloud object-storage bucket) if/when that risk becomes
+    worth the extra setup.
+  - **Restore**: `docker cp <dump> supabase-db:/tmp/restore.dump && docker exec supabase-db
+    pg_restore -U supabase_admin -d postgres --clean --if-exists /tmp/restore.dump` for Postgres;
+    `docker cp <tar.gz> supabase-storage:/tmp/restore.tar.gz && docker exec supabase-storage tar
+    -xzf /tmp/restore.tar.gz -C /var/lib/storage` for Storage. Not yet rehearsed end-to-end (no
+    restore has actually been tested against a throwaway target) — do that before trusting this
+    fully, the same way every other claim in this document was verified live rather than assumed.
+- **`config.toml`'s `[export]` path is now fixed** (`filemaker_sync`, 2026-09-07) — previously
+  neither a valid Windows nor WSL path. `scripts/paths.py::resolve_export_path()` translates the
+  now-correct Windows-native value to its WSL mount-point form automatically; `upload_images_oci.py`
+  and `db_dml_loader.py` both use it. `upload_images_oci.py`'s default folder is also now
+  `webp_mobile` (thumbnail-size, matches what's actually served) instead of the full-size `webp`
+  folder it silently would have used before. See `filemaker_sync/devlog/worksheet.md` Session 17.
+
+Still open, lower priority than the above: the S3-protocol default `dev`/`dev` credentials on `oci`
+(flagged repeatedly, still not rotated); no uptime/alerting on the `oci` host itself (Vercel monitors
+the frontend, nothing watches the backend — a silent `oci` outage wouldn't page anyone); no rate
+limiting on the public REST API beyond what Supabase ships with by default.
