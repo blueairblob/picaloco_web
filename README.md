@@ -27,10 +27,10 @@ npm run dev
   handful of small lookup tables for facet dropdowns. The `anon` role is scoped to exactly these —
   it does **not** have access to raw `rat.catalog` (which holds non-public columns like `valuation`).
 - **Images**: `oci`'s Storage now too (`VITE_IMAGES_BASE_URL`, same instance as the metadata) — no
-  key needed, plain public GET. Migrated from a separate old cloud project on 2026-09-06 (see
-  `filemaker_sync/devlog/worksheet.md` Session 15) — that project is no longer used. Only a small,
-  growing fraction of the ~141k catalog rows have a real image today (1,499 as of the migration);
-  the rest show a "not yet available" placeholder.
+  key needed, plain public GET. As of 2026-09-07, 141,197 of the ~141,244 catalog rows have a real
+  image (99.97% — uploaded from the actual local FileMaker export, not the small old cloud project
+  first assumed to be the source; see `filemaker_sync/devlog/worksheet.md` Session 16). ~47 rows show
+  a "not yet available" placeholder — a known, small data-quality gap, not a bug.
 
 ## Project structure
 

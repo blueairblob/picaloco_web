@@ -35,13 +35,14 @@ Two things have to work together for `picaloco_web` to function. Neither lives i
   stack — Postgres, PostgREST, Storage, Studio, etc.), reachable only over Tailscale by hostname,
   made public via **Tailscale Funnel**. Holds the `rat` schema, which `filemaker_sync` populates
   from the RAT charity's FileMaker Pro archive (~141k photo records, growing) — the single,
-  current source for both search/metadata **and** images. As of 2026-09-06 this also hosts every
-  real photo (1,499 `.webp` files, a partial batch of the ~141k catalog rows, not the whole
-  archive — growing over time as more get digitised) — migrated from a separate old Supabase.com
-  cloud project via `filemaker_sync`'s `migrate_storage_images_from_cloud.py` (one-off cutover) and
-  kept current going forward via `upload_images_oci.py` (the durable pipeline, wired into
-  `filemaker_sync`'s GUI as "Upload Images"). See `filemaker_sync/devlog/worksheet.md` Session 15
-  for the full story — that old cloud project is no longer used by this app at all.
+  current source for both search/metadata **and** images. As of 2026-09-07 this hosts **141,197 of
+  the ~141,244 catalog rows' real photos (99.97% coverage)** — uploaded directly from the actual
+  local FileMaker export folder (not the small, partial old Supabase.com cloud project first assumed
+  to be the source — that project is no longer used at all) via `filemaker_sync`'s
+  `upload_images_oci.py` (parallelized; GUI: "Upload Images"). A known ~46-file gap exists — `image_no`
+  values containing characters Supabase Storage rejects as invalid object keys — see
+  `filemaker_sync/devlog/worksheet.md` Session 16 for the full story (Session 15's own entry describes
+  an earlier, wrong, much-smaller figure — superseded, not fixed, kept for history).
 - **`filemaker_sync`** (sibling repo, public): the migration pipeline. Not part of this app's
   runtime at all — it's what keeps `oci`'s `rat` schema and Storage populated and current. See its
   own `CLAUDE.md` and `devlog/worksheet.md` for that side of the system.
@@ -299,10 +300,10 @@ Notes from experience:
 
 ## 8. Known issues / deliberately deferred
 
-- **Only a small, growing fraction of ~141,244 catalog rows have a real photo** (~1,499 as of
-  2026-09-06, up from ~1,003 the same day — check current count, it may keep growing). The rest
-  render a clean "not yet available" placeholder — this is a real data gap (most archive images
-  were never uploaded anywhere), not a bug in this app.
+- **Near-complete photo coverage as of 2026-09-07**: 141,197 of ~141,244 catalog rows have a real
+  photo (99.97%). The remaining ~47 render a clean "not yet available" placeholder — 46 are a known,
+  quarantined data-quality gap (`image_no` values with characters Supabase Storage rejects as
+  invalid object keys), not a bug in this app.
 - **`Location`/`Organisation`/`Route` filter dropdowns are capped at ~1,000 options** by
   PostgREST's default row limit, against real counts of ~14,178 / ~1,520 / ~2,874. `Category`,
   `Country`, `Collection`, and `Photographer` are all small enough to be unaffected. Search itself
