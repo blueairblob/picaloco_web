@@ -16,6 +16,23 @@ export interface Database {
       country: { Row: { id: string; name: string | null } }
       route: { Row: { id: string; name: string | null } }
       builder: { Row: { id: string; code: string | null; name: string | null } }
+      sync_status: {
+        Row: {
+          id: number
+          run_at: string
+          run_type: string
+          dry_run: boolean
+          new_count: number | null
+          changed_count: number | null
+          delta_count: number | null
+          verified_count: number | null
+          rejected_count: number | null
+          real_changes: number | null
+          manifest_advanced: number | null
+          ok: boolean
+          detail: unknown
+        }
+      }
     }
     Views: {
       mobile_catalog_view: {
