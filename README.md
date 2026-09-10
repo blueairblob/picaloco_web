@@ -31,10 +31,15 @@ npm run dev
   image (99.97% — uploaded from the actual local FileMaker export, not the small old cloud project
   first assumed to be the source; see `filemaker_sync/devlog/worksheet.md` Session 16). ~47 rows show
   a "not yet available" placeholder — a known, small data-quality gap, not a bug.
+- **`picaloco_agent` activation gate** (`api/agent-auth.ts`, a Vercel serverless function, not part
+  of the Vite app): lets the sibling `picaloco_agent` desktop tool exchange a revocable registration
+  key for its real DB password, server-side only. See [`DEVOPS.md` §11](./DEVOPS.md#11-picaloco_agents-activation-gate-apiagent-authts).
 
 ## Project structure
 
 ```
+api/
+  agent-auth.ts        picaloco_agent's activation gate (Vercel serverless function, see §11)
 src/
   lib/supabase/       Supabase client + hand-authored types (reference only, see client.ts)
   services/           catalogService (search/detail), lookupService (facets), images (URL builder)

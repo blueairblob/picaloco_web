@@ -236,6 +236,15 @@ None of these are secret in the traditional sense (all three are embedded in the
 of a deployed site) — but keep them in `.env.local` (gitignored) rather than committed, as normal
 hygiene and to make rotation easy.
 
+**Two more, genuinely secret this time, for `api/agent-auth.ts`** (§11) — set these directly in
+Vercel, never in a committed `.env*` file, and never with the `VITE_` prefix (that prefix means
+Vite inlines the value into the browser bundle, which is exactly what must not happen here):
+
+| Variable | What it is |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | `oci`'s `service_role` key — full RLS-bypass access. Supabase Studio → Settings → API, on the `oci` instance. |
+| `AGENT_DB_PASSWORD` | The `picaloco_agent` Postgres role's real password (see `filemaker_sync/create_agent_role.sql`) |
+
 ---
 
 ## 6. Deploying
@@ -256,6 +265,10 @@ npx vercel link --yes --project picaloco-web
 npx vercel env add VITE_SUPABASE_URL production --value "<url>" --yes
 npx vercel env add VITE_SUPABASE_ANON_KEY production --value "<key>" --type config --yes
 npx vercel env add VITE_IMAGES_BASE_URL production --value "<url>" --yes
+# The next two are real secrets -- do NOT pass --type config (that's what keeps §5's three
+# VITE_-prefixed vars deliberately public/readable-after-saving; these must stay actually secret).
+npx vercel env add SUPABASE_SERVICE_ROLE_KEY production --value "<service_role key>" --yes
+npx vercel env add AGENT_DB_PASSWORD production --value "<picaloco_agent role password>" --yes
 npx vercel deploy --prod --yes
 ```
 
@@ -373,3 +386,39 @@ Still open, lower priority than the above: the S3-protocol default `dev`/`dev` c
 (flagged repeatedly, still not rotated); no uptime/alerting on the `oci` host itself (Vercel monitors
 the frontend, nothing watches the backend — a silent `oci` outage wouldn't page anyone); no rate
 limiting on the public REST API beyond what Supabase ships with by default.
+
+---
+
+## 11. `picaloco_agent`'s activation gate (`api/agent-auth.ts`)
+
+**Why this exists**: `picaloco_agent` (sibling repo, the Windows desktop sync tool) needs a DB
+password to run, but its installer is meant to be handed out via a plain weblink rather than a
+gated download. Baking the password into every copy of the `.exe` would mean anyone who gets the
+file has it forever, with no way to revoke it. Instead, the agent ships with no password at all,
+prompts for a registration key on first run, and exchanges that key for the real password here.
+Full design discussion: `filemaker_sync` session log, 2026-09-10.
+
+**Why this lives in `picaloco_web`, not a Supabase Edge Function**: `oci`'s
+`supabase-edge-functions` container has never actually had a function deployed to it — it's been
+crash-looping since setup with no entrypoint (see `filemaker_sync/devlog/worksheet.md`), and a
+prior session recommended just stopping it. Reviving and deploying to it means live SSH work on
+`oci` itself. `picaloco_web` already has a proven Vercel deploy path (§6), and a Vercel serverless
+function gives the exact same security property (the real secret lives server-side, never reaches
+a client) without needing new infrastructure.
+
+**Setup** (one-time):
+
+1. Run `supabase_agent_licenses.sql` (repo root) against `oci` — creates
+   `rat_migration.agent_licenses`, deliberately **no** `anon` grant (only `api/agent-auth.ts`'s
+   service_role client ever queries it).
+2. Set `SUPABASE_SERVICE_ROLE_KEY` and `AGENT_DB_PASSWORD` in Vercel (§5, §6.2).
+3. Issue a key for an install: `INSERT INTO rat_migration.agent_licenses (label) VALUES ('...')
+   RETURNING key;` — hand the returned UUID to whoever's running `picaloco_agent`.
+4. Revoke a key any time, no redeploy needed: `UPDATE rat_migration.agent_licenses SET revoked =
+   true WHERE label = '...';`
+
+**Not yet done**: `picaloco_agent`'s own side (a "Registration Key" field, and wiring
+`target_config.py` to call this endpoint instead of reading a baked-in secret) — this session only
+built the gate itself. The Storage `service_role` key is also not yet relayed the same way (still a
+separate, not-yet-built piece — see the design discussion for why Postgres and Storage need
+different treatment here).
