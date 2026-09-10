@@ -7,6 +7,16 @@ const VIEW = 'mobile_catalog_view'
 // spaces/punctuation is treated as free text across the descriptive fields instead.
 const IMAGE_NO_LIKE = /^[a-z]+\d+$/i
 
+// PostgREST's `or=(...)` filter syntax treats `,` and `()` as structural (condition separators /
+// grouping), so a literal one of those in a search term corrupts the filter string being built
+// below unless the value is double-quoted -- and *within* a quoted value, `"` and `\` in turn need
+// escaping. Confirmed live (2026-09-10): searching "Class 1400 (11)" (a real image_no containing a
+// space AND parentheses) silently returned zero rows, because the unescaped `(`/`)` broke the OR
+// filter's own grouping syntax before it ever reached a real ILIKE comparison.
+function pgQuoteFilterValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
 export async function searchCatalog({
   imageNo,
   freeText,
@@ -30,9 +40,14 @@ export async function searchCatalog({
     if (looksLikeImageNo) {
       builder = builder.ilike('image_no', `${query}%`)
     } else {
-      const escaped = query.replace(/[%,]/g, '')
+      // Strip just the ILIKE wildcard char (a literal "%" from the user would
+      // otherwise act as their own wildcard); everything else -- including
+      // ",", "(", ")", '"' -- gets safely quoted below instead of stripped,
+      // so the actual search text (and its matching) stays exactly what the
+      // user typed.
+      const term = pgQuoteFilterValue(`%${query.replace(/%/g, '')}%`)
       builder = builder.or(
-        `description.ilike.%${escaped}%,category.ilike.%${escaped}%,photographer.ilike.%${escaped}%,location.ilike.%${escaped}%,image_no.ilike.%${escaped}%`,
+        `description.ilike.${term},category.ilike.${term},photographer.ilike.${term},location.ilike.${term},image_no.ilike.${term}`,
       )
     }
   }
