@@ -415,10 +415,24 @@ a client) without needing new infrastructure.
    (it's only ever been reached via direct Postgres connections elsewhere in this project); a table
    created there was silently unreachable via `supabase-js`, with a valid key failing exactly like
    a bad one. See the SQL file's own header and `api/agent-auth.ts`'s module docstring.
-2. Set `SUPABASE_SERVICE_ROLE_KEY` and `AGENT_DB_PASSWORD` in Vercel (§5, §6.2).
-3. Issue a key for an install: `INSERT INTO rat.agent_licenses (label) VALUES ('...')
+2. **Grant `service_role` access explicitly** — confirmed live this doesn't come for free just
+   because the table lives in `rat`: `anon` has its own long-standing explicit grants there, but
+   nothing had ever granted `service_role` anything on this project's own schemas before this table
+   (`service_role`'s usual broad access is Supabase's own bootstrap default for schemas *it*
+   creates, like `public`/`auth`/`storage` — not automatic for a project's own custom schema).
+   Without this, every lookup fails with Postgres `42501 permission denied for schema rat`,
+   regardless of whether the key is valid:
+   ```sql
+   GRANT USAGE ON SCHEMA rat TO service_role;
+   GRANT SELECT, UPDATE ON rat.agent_licenses TO service_role;
+   ```
+3. Set `SUPABASE_SERVICE_ROLE_KEY` and `AGENT_DB_PASSWORD` in Vercel (§5, §6.2) — **the real
+   password**, not the `CHANGE_ME_BEFORE_RUNNING` placeholder `picaloco_agent/src/_secret.py` ships
+   with on a fresh checkout (confirmed live: this is exactly the failure mode if you paste that
+   placeholder in instead of the real `picaloco_agent` role password from `create_agent_role.sql`).
+4. Issue a key for an install: `INSERT INTO rat.agent_licenses (label) VALUES ('...')
    RETURNING key;` — hand the returned UUID to whoever's running `picaloco_agent`.
-4. Revoke a key any time, no redeploy needed: `UPDATE rat.agent_licenses SET revoked =
+5. Revoke a key any time, no redeploy needed: `UPDATE rat.agent_licenses SET revoked =
    true WHERE label = '...';`
 
 **Not yet done**: `picaloco_agent`'s own side (a "Registration Key" field, and wiring
