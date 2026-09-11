@@ -84,8 +84,11 @@ export default async function handler(req: MinimalVercelRequest, res: MinimalVer
     // A genuine infrastructure problem (bad schema/grant/connection) -- distinct from "key not
     // found" below on purpose. Conflating these two is exactly what made the rat_migration mistake
     // above so hard to diagnose: a real, valid key and a wrong one produced the identical response.
+    // TEMPORARY: surfacing the actual PostgREST error in the response itself (not just server logs)
+    // while diagnosing why moving the table to `rat` didn't fix this on its own -- revert once
+    // resolved, no need to expose internals in the steady state.
     console.error('agent_licenses lookup failed:', error)
-    res.status(500).json({ error: 'Activation lookup failed -- see server logs' })
+    res.status(500).json({ error: 'Activation lookup failed', detail: error })
     return
   }
   if (!data || data.revoked) {
