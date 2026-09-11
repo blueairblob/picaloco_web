@@ -408,13 +408,17 @@ a client) without needing new infrastructure.
 
 **Setup** (one-time):
 
-1. Run `supabase_agent_licenses.sql` (repo root) against `oci` — creates
-   `rat_migration.agent_licenses`, deliberately **no** `anon` grant (only `api/agent-auth.ts`'s
-   service_role client ever queries it).
+1. Run `supabase_agent_licenses.sql` (repo root) against `oci` — creates `rat.agent_licenses`,
+   deliberately **no** `anon` grant (only `api/agent-auth.ts`'s service_role client ever queries
+   it). **Lives in `rat`, not `rat_migration`** — confirmed live that this instance's PostgREST only
+   exposes schemas explicitly configured for the REST API, and `rat_migration` isn't one of them
+   (it's only ever been reached via direct Postgres connections elsewhere in this project); a table
+   created there was silently unreachable via `supabase-js`, with a valid key failing exactly like
+   a bad one. See the SQL file's own header and `api/agent-auth.ts`'s module docstring.
 2. Set `SUPABASE_SERVICE_ROLE_KEY` and `AGENT_DB_PASSWORD` in Vercel (§5, §6.2).
-3. Issue a key for an install: `INSERT INTO rat_migration.agent_licenses (label) VALUES ('...')
+3. Issue a key for an install: `INSERT INTO rat.agent_licenses (label) VALUES ('...')
    RETURNING key;` — hand the returned UUID to whoever's running `picaloco_agent`.
-4. Revoke a key any time, no redeploy needed: `UPDATE rat_migration.agent_licenses SET revoked =
+4. Revoke a key any time, no redeploy needed: `UPDATE rat.agent_licenses SET revoked =
    true WHERE label = '...';`
 
 **Not yet done**: `picaloco_agent`'s own side (a "Registration Key" field, and wiring

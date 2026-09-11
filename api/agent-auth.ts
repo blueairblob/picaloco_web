@@ -8,10 +8,20 @@
  * real secret never reaches the client), different host.
  *
  * picaloco_agent ships with no DB password baked in. On first run it prompts for a registration key
- * and POSTs it here. This checks the key against rat_migration.agent_licenses (server-side only,
- * via the service_role key -- never sent to the client) and, if valid and not revoked, returns the
- * real picaloco_agent Postgres password. Revoking a key (UPDATE ... SET revoked = true) cuts off
- * that install immediately, no new agent release needed.
+ * and POSTs it here. This checks the key against rat.agent_licenses (server-side only, via the
+ * service_role key -- never sent to the client) and, if valid and not revoked, returns the real
+ * picaloco_agent Postgres password. Revoking a key (UPDATE ... SET revoked = true) cuts off that
+ * install immediately, no new agent release needed.
+ *
+ * WHY rat, NOT rat_migration (confirmed live, 2026-09-11): this oci instance's PostgREST only
+ * exposes schemas it's been explicitly configured to serve over the REST API, and `rat` is the only
+ * one that's ever needed that (mobile_catalog_view, see src/lib/supabase/client.ts) --
+ * rat_migration has only ever been reached via *direct* Postgres connections (psycopg2/pyodbc) in
+ * filemaker_sync/picaloco_agent, never through supabase-js/PostgREST. A real, valid key in
+ * rat_migration.agent_licenses was silently unreachable this way -- every lookup failed the same
+ * way a genuinely bad key would, with no error surfaced to tell them apart. Table grants are
+ * per-table, not schema-wide, so being in `rat` doesn't expose this to anon -- it has no grant
+ * either way, same as before.
  *
  * Requires three Vercel env vars (Project Settings -> Environment Variables, NOT the VITE_-prefixed
  * ones the client bundle uses -- these must stay server-only):
@@ -55,11 +65,12 @@ export default async function handler(req: MinimalVercelRequest, res: MinimalVer
     return
   }
 
-  // Own client, service_role, scoped to rat_migration -- deliberately NOT the shared anon client
-  // src/lib/supabase/client.ts exports (that one's schema-locked to `rat` and anon-scoped by
-  // design; this function needs a table anon must never be able to read at all).
+  // Own client, service_role -- deliberately NOT the shared anon client src/lib/supabase/client.ts
+  // exports (that one's anon-scoped by design; this table must never be anon-readable). Same `rat`
+  // schema as that shared client uses, though -- see the module docstring for why rat_migration,
+  // the conceptually-tidier choice, doesn't actually work here.
   const admin = createClient(url, serviceKey, {
-    db: { schema: 'rat_migration' },
+    db: { schema: 'rat' },
     auth: { persistSession: false },
   })
 
@@ -69,7 +80,15 @@ export default async function handler(req: MinimalVercelRequest, res: MinimalVer
     .eq('key', key)
     .maybeSingle()
 
-  if (error || !data || data.revoked) {
+  if (error) {
+    // A genuine infrastructure problem (bad schema/grant/connection) -- distinct from "key not
+    // found" below on purpose. Conflating these two is exactly what made the rat_migration mistake
+    // above so hard to diagnose: a real, valid key and a wrong one produced the identical response.
+    console.error('agent_licenses lookup failed:', error)
+    res.status(500).json({ error: 'Activation lookup failed -- see server logs' })
+    return
+  }
+  if (!data || data.revoked) {
     res.status(403).json({ error: 'Invalid or revoked key' })
     return
   }
