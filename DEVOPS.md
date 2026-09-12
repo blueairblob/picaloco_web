@@ -435,8 +435,16 @@ a client) without needing new infrastructure.
 5. Revoke a key any time, no redeploy needed: `UPDATE rat.agent_licenses SET revoked =
    true WHERE label = '...';`
 
-**Not yet done**: `picaloco_agent`'s own side (a "Registration Key" field, and wiring
-`target_config.py` to call this endpoint instead of reading a baked-in secret) — this session only
-built the gate itself. The Storage `service_role` key is also not yet relayed the same way (still a
-separate, not-yet-built piece — see the design discussion for why Postgres and Storage need
-different treatment here).
+**Done and confirmed live end-to-end (2026-09-11/12)**: `picaloco_agent`'s own side (a "Registration
+Key" field under Help → Registration..., `target_config.py` calling this endpoint instead of reading
+a baked-in secret) — a real key, issued via the SQL above, entered in the actual running GUI and
+accepted, `Sync`/`Upload Images` correctly enabling. Getting there needed real live debugging: the
+table started in `rat_migration`, which this instance's PostgREST doesn't expose (moved to `rat`);
+`service_role` then needed explicit `GRANT`s on it (step 2 above, not automatic just because the
+table's in `rat`); and `AGENT_DB_PASSWORD` had to actually match the live Postgres role's password,
+not just look right in Vercel. Full trace: `filemaker_sync/devlog/worksheet.md` Session 19.
+
+**Not yet done**: the Storage `service_role` key is not yet relayed the same way (still the old
+baked-secret mechanism in `picaloco_agent`) — separate, not-yet-started piece; see the design
+discussion above for why Postgres and Storage need different treatment here. `picaloco_agent` also
+isn't repackaged/distributed yet — this gate makes that safe to do via a plain weblink once it is.
