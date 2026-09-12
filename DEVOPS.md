@@ -462,5 +462,14 @@ running with legitimate direct access. `target_config.has_storage_access()` repl
 entirely on any real distributed install (no baked `service_role` key, registration key
 notwithstanding), which was the actual gap this closes.
 
+**Confirmed live end-to-end (2026-09-12, filemaker_sync session log Session 21)**: reused the same
+registration key already proven for the Postgres half. `agent-storage-list.ts` paginated the real
+141,327-object bucket (95 pages) and landed on the same 48 missing image_nos the direct path
+finds; `agent-storage-upload.ts` both uploaded a genuine missing image (`msmsa0265`, independently
+verified present in Storage afterward) and correctly classified a fresh InvalidKey case
+(`` mssacpe3042` ``) as `storage_invalid_key: true`, which landed in `rat_migration.reject_log` on
+the agent side exactly as the direct path would. Both halves of the gate are now live-proven, not
+just deployed.
+
 `picaloco_agent` still isn't repackaged/distributed yet — this gate makes that safe to do via a
 plain weblink once it is.
