@@ -389,7 +389,7 @@ limiting on the public REST API beyond what Supabase ships with by default.
 
 ---
 
-## 11. `picaloco_agent`'s activation gate (`api/agent-auth.ts`)
+## 11. `picaloco_agent`'s activation gate (`api/agent-auth.ts`, `api/agent-storage-*.ts`)
 
 **Why this exists**: `picaloco_agent` (sibling repo, the Windows desktop sync tool) needs a DB
 password to run, but its installer is meant to be handed out via a plain weblink rather than a
@@ -444,7 +444,23 @@ table started in `rat_migration`, which this instance's PostgREST doesn't expose
 table's in `rat`); and `AGENT_DB_PASSWORD` had to actually match the live Postgres role's password,
 not just look right in Vercel. Full trace: `filemaker_sync/devlog/worksheet.md` Session 19.
 
-**Not yet done**: the Storage `service_role` key is not yet relayed the same way (still the old
-baked-secret mechanism in `picaloco_agent`) — separate, not-yet-started piece; see the design
-discussion above for why Postgres and Storage need different treatment here. `picaloco_agent` also
-isn't repackaged/distributed yet — this gate makes that safe to do via a plain weblink once it is.
+**Storage `service_role` relay (2026-09-12) — done, both halves of the gate now match.** The
+password half above only covers Postgres; Storage uploads are the materially bigger risk
+(`service_role` bypasses RLS across the *entire* database and Storage, not just images), so it
+gets the same treatment: `api/agent-storage-upload.ts` relays one image upload, `api/agent-
+storage-list.ts` relays one Storage bucket-listing page — both gated by the same
+`rat.agent_licenses` key check (factored into shared `lib/agentAuth.ts`, used by all three
+functions). Reuses the *same* `SUPABASE_SERVICE_ROLE_KEY` env var already set for §11's Postgres
+half — no new Vercel config needed. On `picaloco_agent`'s side, `vendor/scripts/
+upload_images_oci.py` grew an opt-in `--registration-key` mode (resolved via env var
+`RAT_AGENT_REGISTRATION_KEY`) that routes every Storage call through these two endpoints instead
+of talking to Storage directly; the existing direct-`service_role` path is completely unchanged
+and stays the default for `filemaker_sync`'s own trusted, admin-run use (disaster recovery, a full
+archive migration) — there's no reason to pay per-request relay overhead for something already
+running with legitimate direct access. `target_config.has_storage_access()` replaces the old
+`has_service_key()` gate on the Upload Images button — that gate previously blocked Upload Images
+entirely on any real distributed install (no baked `service_role` key, registration key
+notwithstanding), which was the actual gap this closes.
+
+`picaloco_agent` still isn't repackaged/distributed yet — this gate makes that safe to do via a
+plain weblink once it is.
