@@ -372,9 +372,29 @@ Confirmed 2026-09-07, live (a real reboot was performed as the test, not simulat
   - **Restore**: `docker cp <dump> supabase-db:/tmp/restore.dump && docker exec supabase-db
     pg_restore -U supabase_admin -d postgres --clean --if-exists /tmp/restore.dump` for Postgres;
     `docker cp <tar.gz> supabase-storage:/tmp/restore.tar.gz && docker exec supabase-storage tar
-    -xzf /tmp/restore.tar.gz -C /var/lib/storage` for Storage. Not yet rehearsed end-to-end (no
-    restore has actually been tested against a throwaway target) — do that before trusting this
-    fully, the same way every other claim in this document was verified live rather than assumed.
+    -xzf /tmp/restore.tar.gz -C /var/lib/storage` for Storage. These are the correct commands for a
+    REAL disaster (an in-place restore over data that's already gone) — never run them literally as
+    a rehearsal, they'd overwrite the live database/volume.
+  - **Rehearsed for real, 2026-09-19 — both restores work.** Tested against a throwaway target
+    instead of the live one: `pg_restore` into a scratch database (`CREATE DATABASE
+    rat_restore_test`, dropped after) rather than `-d postgres`, and the Storage tar extracted into
+    a scratch directory (`/tmp/storage_restore_test`) rather than `/var/lib/storage`. Postgres: all
+    four spot-checked table counts (`catalog`/`catalog_metadata`/`picture_metadata`/`sync_manifest`)
+    matched the live database exactly. Storage: 141,327 files extracted, matching the live bucket's
+    real object count; a spot-checked file was present with real content.
+  - **One real gap found and fixed getting the rehearsal to run**: a bare `CREATE DATABASE` doesn't
+    carry the `extensions` schema/`uuid-ossp`/`pgcrypto` extensions that Supabase's own project
+    bootstrap installs into the live `postgres` database — every table's `id` column defaults to
+    `extensions.uuid_generate_v4()`, so the very first `CREATE TABLE` in the dump failed, cascading
+    into every downstream `COPY`/constraint/grant (87 errors). Fixed by provisioning
+    `CREATE SCHEMA extensions; CREATE EXTENSION "uuid-ossp"/"pgcrypto" WITH SCHEMA extensions;`
+    before `pg_restore`. This only bites when restoring onto a target that never went through
+    Supabase's own project bootstrap (a scratch database on the same cluster, as here, or — the
+    scenario that actually matters — a **brand new host** after a full host loss, if this pg_dump
+    backup is used to restore it rather than the separate FileMaker-rebuild path documented in
+    `filemaker_sync/devlog/worksheet.md`'s Disaster Recovery reference, which self-provisions its
+    own extension and needs no such fix). The existing live `postgres` database
+    already has both extensions, so an in-place restore onto a host that still exists is unaffected.
 - **`config.toml`'s `[export]` path is now fixed** (`filemaker_sync`, 2026-09-07) — previously
   neither a valid Windows nor WSL path. `scripts/paths.py::resolve_export_path()` translates the
   now-correct Windows-native value to its WSL mount-point form automatically; `upload_images_oci.py`
