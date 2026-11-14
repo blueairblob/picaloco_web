@@ -366,6 +366,10 @@ Confirmed 2026-09-07, live (a real reboot was performed as the test, not simulat
     against a whole-disk/host failure, which would take the backups down with the data. Revisit
     (rsync/rclone to a second location, or a cloud object-storage bucket) if/when that risk becomes
     worth the extra setup.
+  - **⚠ Revisit now (2026-11-14):** this was accepted while everything in `oci` could be rebuilt
+    from FileMaker. The client's Data Fixes reviews (`rat.data_fix_value` rows not `extracted`, and
+    `rat.data_fix_history`, §12) can't be rebuilt, and this same-disk dump is their only copy.
+    Recommended: a nightly off-host copy of just those small tables.
   - **Restore**: `docker cp <dump> supabase-db:/tmp/restore.dump && docker exec supabase-db
     pg_restore -U supabase_admin -d postgres --clean --if-exists /tmp/restore.dump` for Postgres;
     `docker cp <tar.gz> supabase-storage:/tmp/restore.tar.gz && docker exec supabase-storage tar
@@ -507,7 +511,9 @@ review). The FileMaker → Postgres loader never writes these tables. The DDL is
 `none_visible` or `no_loco`) can't be overwritten by the extractor or a sync. A trigger rejects
 any change to a reviewed value that doesn't come from a review RPC. When a photo's description
 changes in FileMaker, the extractor refreshes only the *suggestion* and sets `needs_recheck`. The
-reviewed value stays. Rechecks show on the list page as "Needs recheck (N)".
+reviewed value stays. Rechecks show on the list page as "Needs recheck (N)". On a recheck
+card, Enter **keeps the current review** and U **uses the new suggestion**. A saved value counts as
+`verified` when it equals the suggestion, and as `corrected` otherwise.
 
 **Admin accounts.**
 1. Keep public sign-up off: `DISABLE_SIGNUP=true` in the Supabase docker `.env`, then
@@ -542,8 +548,11 @@ raise `42501` for non-admins):
 venv/bin/python scripts/extract_loco_fields.py --target-profile oci           # dry run: counts + CSV
 venv/bin/python scripts/extract_loco_fields.py --apply --target-profile oci   # write (never touches reviewed values)
 ```
-Delta Sync (`run_incremental_sync.py`) also refreshes the loco fields for each verified record
-after every sync. `picaloco_agent`'s vendored copy of that script doesn't do this yet.
+Every Stage 2 load (`db_dml_loader.py`: GUI Full Sync, Load to Target) and every Delta Sync
+(`run_incremental_sync.py`) also refreshes the loco fields for the rows it loaded. This puts new
+photos into the queue and sets `needs_recheck` when FileMaker changes a reviewed photo's
+description. Neither step can fail the load. **`picaloco_agent`'s vendored copies of these scripts
+don't do this yet.** Until they are synced, run the `--apply` command above after each agent sync.
 
 **Preservation check.** Run it before and after any reload or full sync. The `checksum` must not
 change except through the client's own reviews:
@@ -552,5 +561,19 @@ venv/bin/python scripts/data_fix_preservation_check.py --target-profile oci
 # baseline 2026-11-14, before any review: {"reviewed": 0, "checksum": "d41d8cd98f00b204e9800998ecf8427e"}
 ```
 
-**Backups.** The nightly `rat-backup.sh db` dump covers the whole `rat` schema, so the Data Fixes
-tables are included (§10).
+**Backups and recovery: the reviews are irreplaceable.** The client's reviews exist only in
+`oci`. The FileMaker rebuild (filemaker_sync's Disaster Recovery chain) plus `--apply` would
+recreate every row as an unreviewed suggestion, so **restore `rat.data_fix*` from the nightly
+dump; never re-extract over it.** The nightly `rat-backup.sh db` dump covers the whole `rat`
+schema (§10), but it sits on the same disk. `rat.admin_user` references `auth.users`, which isn't
+in that dump: on a new host, recreate the admin accounts first, then re-insert `admin_user` by
+email. Restore check, run on huey once a dump containing the tables exists:
+```bash
+F=$(ls -t ~/backups/rat/db/* | head -1); pg_restore --list "$F" | grep data_fix
+docker exec supabase-db createdb -U supabase_admin restore_check
+docker exec supabase-db psql -U supabase_admin -d restore_check -c 'create schema rat'
+docker exec -i supabase-db pg_restore -U supabase_admin -d restore_check -n rat -t data_fix_value < "$F"
+docker exec supabase-db psql -U supabase_admin -d restore_check -c "select count(*), count(*) filter (where status <> 'extracted') from rat.data_fix_value"
+docker exec supabase-db dropdb -U supabase_admin restore_check
+```
+The counts must match the live table.

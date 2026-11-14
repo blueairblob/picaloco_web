@@ -140,6 +140,11 @@ the code.
    `suggested_values`. `values` and `status` stay as they are.
 3. **The sync never touches these tables.** Stage 2 has no code path that writes to `data_fix_*`.
    Add a test that fails if `db_dml_loader.py` ever references them.
+   *Amended 2026-11-14 (final review):* after each load, Stage 2 now calls the extractor's
+   `--apply` path for the rows it loaded. Without this, a GUI Full Sync or Load to Target would
+   never queue new photos or raise `needs_recheck`, which would break rule 2. The loader still has
+   no SQL of its own against `data_fix_*`, and the guard test enforces that. The extractor's upsert
+   is the only writer, and the SQL guard trigger stops it changing a reviewed value.
 4. **Every change is recorded** in `data_fix_history`, by the trigger, from both sources.
 5. **Concurrent edits can't silently overwrite each other.** The review UI sends the
    `updated_at` it loaded. The update fails if the row has changed since, and the UI reloads the
