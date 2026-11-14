@@ -17,6 +17,24 @@ function pgQuoteFilterValue(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
+// Escape LIKE/ILIKE's own wildcard characters so a typed value matches literally.
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`)
+}
+
+// Escape POSIX regex metacharacters so a typed value matches literally.
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Stopgap loco-number search: there is no loco-number field yet, so match the typed value as a
+// whole token anywhere in the description ("42616" matches "number 42616 stands" but not
+// "142616"). Known false positives: years, train times, works numbers that share the digits.
+// To be replaced by a proper extracted loco-number table.
+function locoNumberPattern(value: string): string {
+  return `(^|[^[:alnum:]])${escapeRegex(value.trim())}([^[:alnum:]]|$)`
+}
+
 export async function searchCatalog({
   imageNo,
   freeText,
@@ -59,15 +77,15 @@ export async function searchCatalog({
   if (filters?.country) builder = builder.eq('country', filters.country)
   if (filters?.route) builder = builder.eq('route', filters.route)
   if (filters?.collection) builder = builder.eq('collection', filters.collection)
-  if (filters?.gauge) builder = builder.eq('gauge', filters.gauge)
+  // Gauge is free-typed text with inconsistent casing in the source ("Standard" vs "standard"),
+  // so match it case-insensitively but still exactly: ILIKE with LIKE's own wildcards escaped.
+  if (filters?.gauge) builder = builder.ilike('gauge', escapeLikePattern(filters.gauge))
+  // Exact date matches date_taken only -- photos with just a text "circa" date have no
+  // date_taken and are deliberately not matched by a date search.
+  if (filters?.loco) builder = builder.filter('description', 'imatch', locoNumberPattern(filters.loco))
+  if (filters?.date) builder = builder.eq('date_taken', filters.date)
   if (filters?.dateFrom) builder = builder.gte('date_taken', filters.dateFrom)
   if (filters?.dateTo) builder = builder.lte('date_taken', filters.dateTo)
-  if (filters?.builderCode) {
-    builder = builder.contains('builders', [{ builder_code: filters.builderCode }])
-  }
-  if (filters?.worksNumber) {
-    builder = builder.contains('builders', [{ works_number: filters.worksNumber }])
-  }
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1

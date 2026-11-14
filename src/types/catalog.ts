@@ -52,10 +52,10 @@ export interface CatalogFilters {
   route?: string
   collection?: string
   gauge?: string
+  loco?: string
+  date?: string
   dateFrom?: string
   dateTo?: string
-  builderCode?: string
-  worksNumber?: string
 }
 
 export interface SearchParams {

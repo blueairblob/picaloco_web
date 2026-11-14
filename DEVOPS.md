@@ -354,6 +354,19 @@ Confirmed 2026-09-07, live (a real reboot was performed as the test, not simulat
   reboot brought every container back up automatically *and* restored the Tailscale Funnel config
   with zero manual re-run — `tailscale funnel status` showed it active again within ~20 seconds of
   the host coming back, no `tailscale funnel ...` command needed after boot.
+- **Postgres shared memory raised to 1GB (2026-11-14).** Docker's default `/dev/shm` of 64MB
+  caused intermittent API failures under parallel queries: `could not resize shared memory segment
+  "/PostgreSQL.…" to 16777216 bytes: No space left on device` (disk itself was 57% used, 17Gi RAM
+  free — not a real space problem). Fixed with `/home/huey/supabase/docker-compose.override.yml`:
+  ```yaml
+  services:
+    db:
+      shm_size: 1gb
+  ```
+  applied via `docker compose up -d db` (~30s DB downtime, data volume untouched). Kept in an
+  override file so Supabase upgrades to `docker-compose.yml` don't drop it. **Recreate this file
+  on any rebuild of the host.** Verify: `docker inspect -f "{{.HostConfig.ShmSize}}" supabase-db`
+  → `1073741824`.
 - **Backups: local-only, automated, cron-driven.** `~/bin/rat-backup.sh` on the `oci` host (as user
   `huey`, no root needed — Postgres dumps via `docker exec supabase-db pg_dump -U supabase_admin`,
   which authenticates locally inside the container with no password required; Storage backups via

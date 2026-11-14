@@ -18,10 +18,10 @@ const FILTER_LABELS: Record<keyof CatalogFilters, string> = {
   route: 'Route',
   collection: 'Collection',
   gauge: 'Gauge',
+  loco: 'Loco no.',
+  date: 'Date',
   dateFrom: 'From',
   dateTo: 'To',
-  builderCode: 'Builder',
-  worksNumber: 'Works no.',
 }
 
 export function SearchPage() {

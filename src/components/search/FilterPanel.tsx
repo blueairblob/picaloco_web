@@ -1,112 +1,123 @@
 import type { CatalogFilters } from '@/types/catalog'
-import { useLookupOptions } from '@/hooks/useLookupOptions'
+import { useVisibleFilters } from '@/hooks/useVisibleFilters'
+import {
+  DEFAULT_FILTERS,
+  FILTER_DEFINITIONS,
+  clearedFilterPatch,
+  filterHasValue,
+  type FilterId,
+} from '@/lib/filterDefinitions'
+import { AddFilterPicker } from './AddFilterPicker'
+import { DateFilter } from './DateFilter'
+import { LookupCombobox } from './LookupCombobox'
+import { SelectFilter, TextFilter } from './filterFields'
 
 interface FilterPanelProps {
   filters: CatalogFilters
   onChange: (filters: CatalogFilters) => void
 }
 
-function Select({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: string | undefined
-  options: string[]
-  onChange: (value: string) => void
-}) {
-  return (
-    <label className="flex flex-col gap-1.5 text-sm">
-      <span className="font-medium text-[var(--foreground)]">{label}</span>
-      <select
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
-      >
-        <option value="">Any</option>
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
 export function FilterPanel({ filters, onChange }: FilterPanelProps) {
-  const { categories, photographers, locations, organisations, countries, routes, collections } =
-    useLookupOptions()
+  const { visible, add, remove, reset } = useVisibleFilters()
 
-  const names = (opts: { name: string }[] | undefined) => (opts ?? []).map((o) => o.name)
+  // A filter that already has a value (shared link, back button) shows even if this visitor
+  // never added it, so an active filter is never hidden.
+  const shown: FilterId[] = [
+    ...visible,
+    ...FILTER_DEFINITIONS.map((d) => d.id).filter(
+      (id) => !visible.includes(id) && filterHasValue(id, filters),
+    ),
+  ]
 
   const set = (patch: Partial<CatalogFilters>) => onChange({ ...filters, ...patch })
 
+  const removeFilter = (id: FilterId) => {
+    remove(id)
+    if (filterHasValue(id, filters)) set(clearedFilterPatch(id))
+  }
+
+  const resetFilters = () => {
+    // Clear values of anything leaving the panel, so no hidden filter keeps narrowing results.
+    const leaving = shown.filter((id) => !DEFAULT_FILTERS.includes(id))
+    const patch = Object.assign({}, ...leaving.map(clearedFilterPatch)) as Partial<CatalogFilters>
+    reset()
+    if (leaving.some((id) => filterHasValue(id, filters))) set(patch)
+  }
+
+  const renderFilter = (id: FilterId) => {
+    switch (id) {
+      case 'country':
+        return (
+          <SelectFilter id="f-country" label="Country" lookup="country" value={filters.country}
+            onChange={(v) => set({ country: v })} />
+        )
+      case 'location':
+        return (
+          <LookupCombobox label="Location" table="location" value={filters.location}
+            onChange={(v) => set({ location: v })} />
+        )
+      case 'date':
+        return (
+          <DateFilter
+            values={{ date: filters.date, dateFrom: filters.dateFrom, dateTo: filters.dateTo }}
+            onChange={set}
+          />
+        )
+      case 'loco':
+        return (
+          <TextFilter id="f-loco" label="Loco number" placeholder="e.g. 42616"
+            hint="Searches photo descriptions" value={filters.loco}
+            onChange={(v) => set({ loco: v })} />
+        )
+      case 'category':
+        return (
+          <SelectFilter id="f-category" label="Category" lookup="category" value={filters.category}
+            onChange={(v) => set({ category: v })} />
+        )
+      case 'photographer':
+        return (
+          <SelectFilter id="f-photographer" label="Photographer" lookup="photographer"
+            value={filters.photographer} onChange={(v) => set({ photographer: v })} />
+        )
+      case 'organisation':
+        return (
+          <LookupCombobox label="Organisation" table="organisation" value={filters.organisation}
+            onChange={(v) => set({ organisation: v })} />
+        )
+      case 'route':
+        return (
+          <LookupCombobox label="Route" table="route" value={filters.route}
+            onChange={(v) => set({ route: v })} />
+        )
+      case 'collection':
+        return (
+          <SelectFilter id="f-collection" label="Collection" lookup="collection"
+            value={filters.collection} onChange={(v) => set({ collection: v })} />
+        )
+      case 'gauge':
+        return (
+          <TextFilter id="f-gauge" label="Gauge" placeholder="e.g. Standard" value={filters.gauge}
+            onChange={(v) => set({ gauge: v })} />
+        )
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Select
-          label="Category"
-          value={filters.category}
-          options={categories.data ?? []}
-          onChange={(v) => set({ category: v || undefined })}
-        />
-        <Select
-          label="Photographer"
-          value={filters.photographer}
-          options={names(photographers.data)}
-          onChange={(v) => set({ photographer: v || undefined })}
-        />
-        <Select
-          label="Location"
-          value={filters.location}
-          options={names(locations.data)}
-          onChange={(v) => set({ location: v || undefined })}
-        />
-        <Select
-          label="Organisation"
-          value={filters.organisation}
-          options={names(organisations.data)}
-          onChange={(v) => set({ organisation: v || undefined })}
-        />
-        <Select
-          label="Country"
-          value={filters.country}
-          options={names(countries.data)}
-          onChange={(v) => set({ country: v || undefined })}
-        />
-        <Select
-          label="Route"
-          value={filters.route}
-          options={names(routes.data)}
-          onChange={(v) => set({ route: v || undefined })}
-        />
-        <Select
-          label="Collection"
-          value={filters.collection}
-          options={names(collections.data)}
-          onChange={(v) => set({ collection: v || undefined })}
-        />
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-[var(--foreground)]">Date from</span>
-          <input
-            type="date"
-            value={filters.dateFrom ?? ''}
-            onChange={(e) => set({ dateFrom: e.target.value || undefined })}
-            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
-          />
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-[var(--foreground)]">Date to</span>
-          <input
-            type="date"
-            value={filters.dateTo ?? ''}
-            onChange={(e) => set({ dateTo: e.target.value || undefined })}
-            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
-          />
-        </label>
+      <div className="flex items-end gap-4">
+        <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {shown.map((id) => (
+            // The date cell widens itself whenever DateFilter is showing from/to (data-date-range),
+            // including range mode with no dates entered yet.
+            <div key={id} className="min-w-0 sm:has-[[data-date-range]]:col-span-2">
+              {renderFilter(id)}
+            </div>
+          ))}
+          {shown.length === 0 && (
+            <p className="text-sm text-[var(--muted)]">No filters on your panel. Use + to add some.</p>
+          )}
+        </div>
+        <AddFilterPicker shown={shown} onAdd={add} onRemove={removeFilter} onReset={resetFilters} />
       </div>
     </div>
   )
