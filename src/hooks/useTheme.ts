@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 
-export type Theme = 'light' | 'dark' | 'system'
+// 'bespoke' matches the client's own site (ratrust.org): cream, maroon, serif.
+export type Theme = 'light' | 'dark' | 'bespoke' | 'system'
 
 const STORAGE_KEY = 'picaloco-theme'
 
 function readStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === 'light' || stored === 'dark') return stored
+    if (stored === 'light' || stored === 'dark' || stored === 'bespoke') return stored
   } catch {
     // localStorage unavailable (private browsing, etc.) — fall through to system default
   }

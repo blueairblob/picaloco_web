@@ -23,6 +23,10 @@
   color-scheme: dark;
 }
 
+:root[data-theme='bespoke'] {
+  color-scheme: light;
+}
+
 /* System preference applies unless the user has explicitly picked a theme (data-theme). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -64,6 +68,37 @@
   --success: #16a34a;
   --warning: #d97706;
   --danger: #dc2626;
+}
+
+/* Bespoke: matches the client's own site (ratrust.org) -- cream page (#feebcf), maroon (#800000)
+   for the nav bar and title, black serif text. All pairs checked at >= 4.5:1 contrast. */
+:root[data-theme='bespoke'] {
+  --background: #feebcf;
+  --foreground: #1c1410;
+  --muted: #6b4a3a;
+  --border: #e3c49c;
+  --surface: #fff7ea;
+  --accent: #800000;
+  --accent-foreground: #feebcf;
+  --success: #2f6b2f;
+  --warning: #9a5b00;
+  --danger: #b42318;
+}
+
+:root[data-theme='bespoke'] body {
+  font-family: 'Times New Roman', Times, Georgia, serif;
+}
+
+/* Echo the site's maroon nav bar and bold italic maroon title. */
+:root[data-theme='bespoke'] .site-header {
+  border-bottom: 4px solid var(--accent);
+}
+
+:root[data-theme='bespoke'] .site-title {
+  color: var(--accent);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 1.375rem;
 }
 
 * {

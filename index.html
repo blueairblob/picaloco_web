@@ -8,9 +8,13 @@
     <script>
       // Applied synchronously, before first paint, to avoid a flash of the wrong theme.
       // Kept in sync with src/hooks/useTheme.ts's storage key/values.
+      // A ?theme= link (e.g. ?theme=bespoke from the client's own site menu) wins and is remembered.
       try {
-        var t = localStorage.getItem('picaloco-theme')
-        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t)
+        var valid = { light: 1, dark: 1, bespoke: 1 }
+        var fromUrl = new URLSearchParams(location.search).get('theme')
+        if (valid[fromUrl]) localStorage.setItem('picaloco-theme', fromUrl)
+        var t = valid[fromUrl] ? fromUrl : localStorage.getItem('picaloco-theme')
+        if (valid[t]) document.documentElement.setAttribute('data-theme', t)
       } catch (e) {}
     </script>
   </head>
