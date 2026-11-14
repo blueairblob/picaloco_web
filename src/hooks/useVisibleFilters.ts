@@ -1,12 +1,32 @@
 import { useCallback, useState } from 'react'
 import { DEFAULT_FILTERS, isFilterId, type FilterId } from '@/lib/filterDefinitions'
 
-const STORAGE_KEY = 'picaloco.visibleFilters.v1'
+const STORAGE_KEY = 'picaloco.visibleFilters.v2'
+const LEGACY_KEY = 'picaloco.visibleFilters.v1'
+
+// v1 predates the Loco name filter; carry the visitor's panel over and add it.
+export function migrateLegacy(rawV1: string | null): FilterId[] | null {
+  if (!rawV1) return null
+  try {
+    const parsed: unknown = JSON.parse(rawV1)
+    if (!Array.isArray(parsed)) return null
+    const ids = Array.from(new Set(parsed.filter(isFilterId)))
+    if (ids.length === 0) return null
+    return ids.includes('locoName') ? ids : [...ids, 'locoName']
+  } catch {
+    return null
+  }
+}
 
 function load(): FilterId[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULT_FILTERS
+    if (!raw) {
+      const migrated = migrateLegacy(localStorage.getItem(LEGACY_KEY))
+      if (!migrated) return DEFAULT_FILTERS
+      save(migrated)
+      return migrated
+    }
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return DEFAULT_FILTERS
     const ids = parsed.filter(isFilterId)

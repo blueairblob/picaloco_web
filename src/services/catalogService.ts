@@ -13,7 +13,7 @@ const IMAGE_NO_LIKE = /^[a-z]+\d+$/i
 // escaping. Confirmed live (2026-09-10): searching "Class 1400 (11)" (a real image_no containing a
 // space AND parentheses) silently returned zero rows, because the unescaped `(`/`)` broke the OR
 // filter's own grouping syntax before it ever reached a real ILIKE comparison.
-function pgQuoteFilterValue(value: string): string {
+export function pgQuoteFilterValue(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
@@ -27,12 +27,22 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-// Stopgap loco-number search: there is no loco-number field yet, so match the typed value as a
-// whole token anywhere in the description ("42616" matches "number 42616 stands" but not
-// "142616"). Known false positives: years, train times, works numbers that share the digits.
-// To be replaced by a proper extracted loco-number table.
+// Whole-token regex for a loco number ("42616" matches "number 42616 stands" but not "142616").
 function locoNumberPattern(value: string): string {
   return `(^|[^[:alnum:]])${escapeRegex(value.trim())}([^[:alnum:]]|$)`
+}
+
+// `or=` body for the loco-number filter. Rows with a reviewed/extracted value
+// (loco_numbers_text not null) match on it alone; rows with none yet fall back to the
+// description, so unreviewed records stay findable.
+export function locoNumberOrFilter(value: string): string {
+  const q = pgQuoteFilterValue(locoNumberPattern(value))
+  return `loco_numbers_text.imatch.${q},and(loco_numbers_text.is.null,description.imatch.${q})`
+}
+
+// Every whitespace-separated term must appear (any order) in the loco names.
+export function locoNameTerms(value: string): string[] {
+  return value.split(/\s+/).filter(Boolean)
 }
 
 export async function searchCatalog({
@@ -82,7 +92,12 @@ export async function searchCatalog({
   if (filters?.gauge) builder = builder.ilike('gauge', escapeLikePattern(filters.gauge))
   // Exact date matches date_taken only -- photos with just a text "circa" date have no
   // date_taken and are deliberately not matched by a date search.
-  if (filters?.loco) builder = builder.filter('description', 'imatch', locoNumberPattern(filters.loco))
+  if (filters?.loco) builder = builder.or(locoNumberOrFilter(filters.loco))
+  if (filters?.locoName) {
+    for (const term of locoNameTerms(filters.locoName)) {
+      builder = builder.ilike('loco_names_text', `%${escapeLikePattern(term)}%`)
+    }
+  }
   if (filters?.date) builder = builder.eq('date_taken', filters.date)
   if (filters?.dateFrom) builder = builder.gte('date_taken', filters.dateFrom)
   if (filters?.dateTo) builder = builder.lte('date_taken', filters.dateTo)

@@ -7,6 +7,7 @@ export type FilterId =
   | 'location'
   | 'date'
   | 'loco'
+  | 'locoName'
   | 'category'
   | 'photographer'
   | 'organisation'
@@ -25,6 +26,7 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
   { id: 'location', label: 'Location', keys: ['location'] },
   { id: 'date', label: 'Date', keys: ['date', 'dateFrom', 'dateTo'] },
   { id: 'loco', label: 'Loco number', keys: ['loco'] },
+  { id: 'locoName', label: 'Loco name', keys: ['locoName'] },
   { id: 'category', label: 'Category', keys: ['category'] },
   { id: 'photographer', label: 'Photographer', keys: ['photographer'] },
   { id: 'organisation', label: 'Organisation', keys: ['organisation'] },
@@ -34,7 +36,7 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
 ]
 
 // The client's requested starting set.
-export const DEFAULT_FILTERS: FilterId[] = ['country', 'location', 'date', 'loco']
+export const DEFAULT_FILTERS: FilterId[] = ['country', 'location', 'date', 'loco', 'locoName']
 
 const BY_ID = new Map(FILTER_DEFINITIONS.map((d) => [d.id, d]))
 

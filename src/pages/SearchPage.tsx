@@ -19,6 +19,7 @@ const FILTER_LABELS: Record<keyof CatalogFilters, string> = {
   collection: 'Collection',
   gauge: 'Gauge',
   loco: 'Loco no.',
+  locoName: 'Loco name',
   date: 'Date',
   dateFrom: 'From',
   dateTo: 'To',

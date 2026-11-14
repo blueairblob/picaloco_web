@@ -66,8 +66,12 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
       case 'loco':
         return (
           <TextFilter id="f-loco" label="Loco number" placeholder="e.g. 42616"
-            hint="Searches photo descriptions" value={filters.loco}
-            onChange={(v) => set({ loco: v })} />
+            value={filters.loco} onChange={(v) => set({ loco: v })} />
+        )
+      case 'locoName':
+        return (
+          <TextFilter id="f-loco-name" label="Loco name" placeholder="e.g. Flying Scotsman"
+            value={filters.locoName} onChange={(v) => set({ locoName: v })} />
         )
       case 'category':
         return (

@@ -41,6 +41,8 @@ export interface CatalogPhoto {
   corporate_body: string | null
   facility: string | null
   last_updated: string | null
+  loco_numbers: string[] | null
+  loco_names: string[] | null
 }
 
 export interface CatalogFilters {
@@ -53,6 +55,7 @@ export interface CatalogFilters {
   collection?: string
   gauge?: string
   loco?: string
+  locoName?: string
   date?: string
   dateFrom?: string
   dateTo?: string

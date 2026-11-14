@@ -47,6 +47,8 @@ export function PhotoDetailView({ photo }: { photo: CatalogPhoto }) {
                 : null
             }
           />
+          <MetadataRow label="Loco number(s)" value={photo.loco_numbers?.join('; ')} />
+          <MetadataRow label="Loco name(s)" value={photo.loco_names?.join('; ')} />
           <MetadataRow label="Country" value={photo.country} />
           <MetadataRow label="Gauge" value={photo.gauge} />
           <MetadataRow label="Active area" value={photo.active_area} />
