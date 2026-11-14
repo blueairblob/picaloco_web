@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { serializeQueueParams, type QueueParams } from '@/lib/queueParams'
+import { emptyQueueMessage, gridQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
 import {
   confirmMany,
   getQueuePage,
@@ -33,10 +33,12 @@ export function BulkConfirmGrid({ fixId, params }: Props) {
   const [result, setResult] = useState<{ done: number; of: number } | null>(null)
   const [error, setError] = useState<{ message: string; signedOut: boolean } | null>(null)
 
-  const paramsString = serializeQueueParams(params).toString()
+  // Only open records: a ticked tile is always one that Confirm will actually confirm.
+  const gridParams = useMemo(() => gridQueueParams(params), [params])
+  const paramsString = serializeQueueParams(gridParams).toString()
   const page = useQuery({
     queryKey: ['data-fix-grid', fixId, paramsString, after],
-    queryFn: () => getQueuePage(fixId, params, after, GRID_SIZE),
+    queryFn: () => getQueuePage(fixId, gridParams, after, GRID_SIZE),
     staleTime: Infinity,
     gcTime: 0,
     refetchOnWindowFocus: false,
@@ -94,7 +96,7 @@ export function BulkConfirmGrid({ fixId, params }: Props) {
   if (records.length === 0) {
     return (
       <div className={`${box} flex flex-col items-center gap-4`}>
-        <p className="text-[var(--foreground)]">Nothing left for this filter</p>
+        <p className="text-[var(--foreground)]">{emptyQueueMessage(params, after !== null)}</p>
         <Link to="/admin/fixes" className={`${btn} no-underline`}>
           Back to data fixes
         </Link>

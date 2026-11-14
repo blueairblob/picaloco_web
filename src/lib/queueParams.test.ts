@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_QUEUE_PARAMS, parseQueueParams, serializeQueueParams } from './queueParams'
+import {
+  DEFAULT_QUEUE_PARAMS,
+  emptyQueueMessage,
+  gridQueueParams,
+  parseQueueParams,
+  serializeQueueParams,
+} from './queueParams'
 
 const roundTrip = (qs: string) => serializeQueueParams(parseQueueParams(new URLSearchParams(qs))).toString()
 
@@ -35,5 +41,20 @@ describe('queueParams', () => {
     expect(recheckOnly.status).toEqual([])
     expect(recheckOnly.includeRecheck).toBe(true)
     expect(parseQueueParams(serializeQueueParams(recheckOnly))).toEqual(recheckOnly)
+  })
+
+  it('says a filter matched nothing only when a collection or text filter loaded nothing', () => {
+    const typo = { ...DEFAULT_QUEUE_PARAMS, collection: 'Colection X' }
+    expect(emptyQueueMessage(typo, false)).toBe('No records match this filter — check the collection name or text.')
+    expect(emptyQueueMessage({ ...DEFAULT_QUEUE_PARAMS, text: 'zzz' }, false)).toMatch(/No records match/)
+    // Worked through everything that loaded: that's a finished batch, not a typo.
+    expect(emptyQueueMessage(typo, true)).toBe('Nothing left for this filter')
+    expect(emptyQueueMessage(DEFAULT_QUEUE_PARAMS, false)).toBe('Nothing left for this filter')
+  })
+
+  it('limits the grid to open records, never recheck-only reviewed ones', () => {
+    const p = { ...DEFAULT_QUEUE_PARAMS, confidence: ['high' as const], status: ['extracted' as const, 'verified' as const] }
+    expect(gridQueueParams(p)).toEqual({ ...p, status: ['extracted'], includeRecheck: false })
+    expect(gridQueueParams({ ...p, status: ['verified'] }).status).toEqual([])
   })
 })

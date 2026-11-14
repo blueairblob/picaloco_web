@@ -1,7 +1,16 @@
-export type ReviewAction = 'confirm' | 'edit' | 'notVisible' | 'noLoco' | 'skip' | 'back' | 'cancelEdit'
+export type ReviewAction =
+  | 'confirm'
+  | 'useSuggestion'
+  | 'edit'
+  | 'notVisible'
+  | 'noLoco'
+  | 'skip'
+  | 'back'
+  | 'cancelEdit'
 
 const KEYS: Record<string, ReviewAction> = {
   enter: 'confirm',
+  u: 'useSuggestion',
   e: 'edit',
   n: 'notVisible',
   x: 'noLoco',

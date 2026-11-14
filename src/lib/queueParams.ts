@@ -55,3 +55,18 @@ export function serializeQueueParams(p: QueueParams): URLSearchParams {
   if (p.text) sp.set('q', p.text)
   return sp
 }
+
+// The empty-queue message. A collection or text filter that matched nothing at all is most likely a
+// typo (collection matches exactly), so say so rather than looking like a finished batch.
+export function emptyQueueMessage(p: QueueParams, loadedAny: boolean): string {
+  if (!loadedAny && (p.collection || p.text)) {
+    return 'No records match this filter — check the collection name or text.'
+  }
+  return 'Nothing left for this filter'
+}
+
+// The bulk-confirm grid only ever shows rows it can confirm: open (extracted) records, never a
+// reviewed record that's merely flagged for recheck.
+export function gridQueueParams(p: QueueParams): QueueParams {
+  return { ...p, status: p.status.filter((s) => s === 'extracted'), includeRecheck: false }
+}

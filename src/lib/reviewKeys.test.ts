@@ -13,6 +13,8 @@ describe('shortcutFor', () => {
     expect(shortcutFor('ArrowLeft', div)).toBe('back')
     expect(shortcutFor('Enter', div)).toBe('confirm')
     expect(shortcutFor('X', div)).toBe('noLoco')
+    expect(shortcutFor('u', div)).toBe('useSuggestion')
+    expect(shortcutFor('U', div)).toBe('useSuggestion')
     expect(shortcutFor('q', div)).toBeNull()
     // Escape only discards an edit from inside the edit box.
     expect(shortcutFor('Escape', div)).toBeNull()
@@ -22,6 +24,8 @@ describe('shortcutFor', () => {
     expect(shortcutFor('n', textarea)).toBeNull()
     expect(shortcutFor('Enter', textarea)).toBeNull()
     expect(shortcutFor('Escape', textarea)).toBe('cancelEdit')
+    expect(shortcutFor('u', textarea)).toBeNull()
+    expect(shortcutFor('U', { tagName: 'INPUT', isContentEditable: false })).toBeNull()
     expect(shortcutFor('n', { tagName: 'INPUT', isContentEditable: false })).toBeNull()
     expect(shortcutFor('n', { tagName: 'DIV', isContentEditable: true })).toBeNull()
   })

@@ -5,7 +5,8 @@ import { BulkConfirmGrid } from '@/components/admin/fixes/BulkConfirmGrid'
 import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
 import { ReviewCard, type CardAction, type CardNotice } from '@/components/admin/fixes/ReviewCard'
 import { useFixQueue } from '@/hooks/useFixQueue'
-import { parseQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
+import { emptyQueueMessage, parseQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
+import { canUseSuggestion, decideSave, editBaseline, isReviewed, sameValues, type SaveDecision } from '@/lib/reviewDecision'
 import { draftKey, isDraftOutdated, reviewDrafts } from '@/lib/reviewDrafts'
 import { isTypingTarget, shortcutFor } from '@/lib/reviewKeys'
 import { adminSupabase } from '@/lib/supabase/adminClient'
@@ -16,8 +17,6 @@ import {
   normaliseValues,
   reviewValue,
   type DataFix,
-  type FixStatus,
-  type QueueRecord,
 } from '@/services/dataFixService'
 import { getReviewImageUrl } from '@/services/images'
 
@@ -34,15 +33,6 @@ function notVisibleLabel(fixId: string): string {
   return 'Not visible'
 }
 
-// What Confirm saves, and what the edit box starts from: the record's values, else the suggestion.
-function baselineValues(r: Pick<QueueRecord, 'values' | 'suggested_values'>): string[] {
-  return r.values.length > 0 ? r.values : r.suggested_values
-}
-
-function sameValues(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((v, i) => v === b[i])
-}
-
 // Checkboxes take no text, so review keys still work after clicking a filter toggle.
 function keyTarget(el: HTMLElement | null) {
   if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
@@ -56,7 +46,7 @@ function ownsEnter(el: HTMLElement | null): boolean {
   return !!el && ['BUTTON', 'A', 'SUMMARY'].includes(el.tagName)
 }
 
-const SAVE_ACTIONS: CardAction[] = ['confirm', 'notVisible', 'noLoco', 'saveEdit']
+const SAVE_ACTIONS: CardAction[] = ['confirm', 'useSuggestion', 'notVisible', 'noLoco', 'saveEdit']
 
 function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
   const queue = useFixQueue(fix.id, params)
@@ -70,7 +60,7 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
 
   const rec = records[index]
   const key = rec ? draftKey(fix.id, rec.image_no) : ''
-  const baseline = rec ? baselineValues(rec) : []
+  const baseline = rec ? editBaseline(rec) : []
   const storedDraft = rec ? reviewDrafts.get(key) : undefined
   const draft = storedDraft?.text ?? baseline.join('\n')
   const dirty = !!storedDraft && !sameValues(normaliseValues(storedDraft.text), baseline)
@@ -139,7 +129,7 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
   }, [loadError])
   const loadSignedOut = !!loadError && signedOutCheck?.error === loadError && signedOutCheck.signedOut
 
-  const save = async (status: Exclude<FixStatus, 'extracted'>, values: string[]) => {
+  const save = async ({ status, values }: SaveDecision) => {
     if (!rec || savingRef.current) return
     const target = rec
     const targetKey = key
@@ -201,6 +191,12 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
     }
   }
 
+  const editedNotice = () =>
+    setNotice({
+      tone: 'info',
+      text: 'You edited the values — Ctrl+Enter saves the edit; Esc in the box or Discard throws it away.',
+    })
+
   const run = (action: CardAction) => {
     if (!rec) {
       if (action === 'back') goTo(index - 1)
@@ -209,15 +205,21 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
     switch (action) {
       case 'confirm':
         if (dirty) {
-          setNotice({
-            tone: 'info',
-            text: 'You edited the values — Ctrl+Enter saves the edit; Esc in the box or Discard throws it away.',
-          })
-        } else if (baseline.length === 0) {
+          editedNotice()
+        } else if (!isReviewed(rec) && baseline.length === 0) {
           setNotice({ tone: 'info', text: 'Nothing to confirm — press E to type a value, or use N / X.' })
         } else {
-          void save('verified', baseline)
+          // An open record: confirm its values (else the suggestion). A reviewed one: keep it as it is.
+          void save(decideSave(rec, 'confirm'))
         }
+        return
+      case 'useSuggestion':
+        if (!canUseSuggestion(rec)) return
+        if (dirty) {
+          editedNotice()
+          return
+        }
+        void save(decideSave(rec, 'useSuggestion'))
         return
       case 'saveEdit': {
         const values = normaliseValues(draft)
@@ -237,7 +239,7 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
           })
           return
         }
-        void save(sameValues(values, baseline) ? 'verified' : 'corrected', values)
+        void save(decideSave(rec, 'edit', values))
         return
       }
       case 'edit': {
@@ -254,10 +256,10 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
         textareaRef.current?.blur()
         return
       case 'notVisible':
-        void save('none_visible', [])
+        void save({ status: 'none_visible', values: [] })
         return
       case 'noLoco':
-        void save('no_loco', [])
+        void save({ status: 'no_loco', values: [] })
         return
       case 'skip':
         goTo(index + 1)
@@ -348,7 +350,7 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
     }
     return (
       <div className={`${box} flex flex-col items-center gap-4`}>
-        <p className="text-[var(--foreground)]">Nothing left for this filter</p>
+        <p className="text-[var(--foreground)]">{emptyQueueMessage(params, records.length > 0)}</p>
         <div className="flex flex-wrap justify-center gap-2">
           {records.length > 0 && (
             <button type="button" onClick={() => goTo(index - 1)} className={linkBtn}>
