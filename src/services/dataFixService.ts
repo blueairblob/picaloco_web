@@ -216,3 +216,23 @@ export function formatWarnings(values: string[]): string[] {
   }
   return out
 }
+
+export interface ConfirmItem {
+  image_no: string
+  updated_at: string
+}
+
+// Only still-open (extracted) records the reviewer left ticked. updated_at is the server's own
+// string, untouched: a Date would drop the microseconds and every item would mismatch.
+export function toConfirmItems(records: QueueRecord[], unticked: ReadonlySet<string>): ConfirmItem[] {
+  return records
+    .filter((r) => r.status === 'extracted' && !unticked.has(r.image_no))
+    .map((r) => ({ image_no: r.image_no, updated_at: r.updated_at }))
+}
+
+// Returns how many were actually confirmed; stale or already-reviewed items are skipped server-side.
+export async function confirmMany(fixId: string, items: ConfirmItem[]): Promise<number> {
+  const { data, error } = await adminSupabase.rpc('confirm_fix_values', { p_fix_id: fixId, p_items: items })
+  if (error) throw error
+  return Number(data ?? 0)
+}

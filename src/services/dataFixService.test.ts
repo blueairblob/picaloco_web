@@ -7,6 +7,8 @@ vi.mock('@/lib/supabase/adminClient', () => ({
 }))
 
 import {
+  confirmMany,
+  toConfirmItems,
   escapeLike,
   formatWarnings,
   isSignedOutError,
@@ -16,6 +18,7 @@ import {
   reviewValue,
   summariseProgress,
   type ProgressRow,
+  type QueueRecord,
 } from './dataFixService'
 import { DEFAULT_QUEUE_PARAMS } from '@/lib/queueParams'
 
@@ -153,5 +156,44 @@ describe('reviewValue', () => {
   it('turns a thrown network error into an error outcome', async () => {
     rpc.mockRejectedValue(new Error('Failed to fetch'))
     expect(await reviewValue(input)).toEqual({ ok: false, reason: 'error', message: 'Failed to fetch' })
+  })
+})
+
+describe('toConfirmItems / confirmMany', () => {
+  const rec = (image_no: string, status: QueueRecord['status'], updated_at: string): QueueRecord => ({
+    image_no,
+    description: null,
+    collection: null,
+    date_taken: null,
+    cd_no: null,
+    values: [],
+    suggested_values: ['A'],
+    confidence: 'high',
+    status,
+    needs_recheck: false,
+    updated_at,
+  })
+
+  it('sends only ticked, extracted records with the exact updated_at', () => {
+    const records = [
+      rec('a1', 'extracted', '2026-11-14T22:00:48.944469+00:00'),
+      rec('a2', 'extracted', '2026-11-14T22:00:49.000001+00:00'),
+      rec('a3', 'verified', '2026-11-14T22:00:50.000002+00:00'),
+    ]
+    expect(toConfirmItems(records, new Set(['a2']))).toEqual([
+      { image_no: 'a1', updated_at: '2026-11-14T22:00:48.944469+00:00' },
+    ])
+  })
+
+  it('passes items straight to the RPC and returns the count', async () => {
+    rpc.mockResolvedValueOnce({ data: 1, error: null })
+    const items = [{ image_no: 'a1', updated_at: '2026-11-14T22:00:48.944469+00:00' }]
+    expect(await confirmMany('loco_number', items)).toBe(1)
+    expect(rpc).toHaveBeenCalledWith('confirm_fix_values', { p_fix_id: 'loco_number', p_items: items })
+  })
+
+  it('throws on RPC error', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+    await expect(confirmMany('x', [])).rejects.toBeTruthy()
   })
 })

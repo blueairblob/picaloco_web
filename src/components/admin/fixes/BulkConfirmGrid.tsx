@@ -1,0 +1,181 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { serializeQueueParams, type QueueParams } from '@/lib/queueParams'
+import {
+  confirmMany,
+  getQueuePage,
+  isSignedOutError,
+  toConfirmItems,
+  type QueueRecord,
+} from '@/services/dataFixService'
+import { adminSupabase } from '@/lib/supabase/adminClient'
+import { getReviewImageUrl } from '@/services/images'
+
+export const GRID_SIZE = 24
+
+const box = 'rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 text-center text-[var(--muted)]'
+const btn =
+  'rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--foreground)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50'
+
+interface Props {
+  fixId: string
+  params: QueueParams
+}
+
+export function BulkConfirmGrid({ fixId, params }: Props) {
+  const queryClient = useQueryClient()
+  const [after, setAfter] = useState<string | null>(null)
+  const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set())
+  const [confirming, setConfirming] = useState(false)
+  const [result, setResult] = useState<{ done: number; of: number } | null>(null)
+  const [error, setError] = useState<{ message: string; signedOut: boolean } | null>(null)
+
+  const paramsString = serializeQueueParams(params).toString()
+  const page = useQuery({
+    queryKey: ['data-fix-grid', fixId, paramsString, after],
+    queryFn: () => getQueuePage(fixId, params, after, GRID_SIZE),
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  })
+  const records: QueueRecord[] = useMemo(() => page.data ?? [], [page.data])
+  const items = useMemo(() => toConfirmItems(records, unticked), [records, unticked])
+
+  // The single-review queue holds its own copies (with now-stale updated_at); drop it on leaving.
+  useEffect(
+    () => () => {
+      void queryClient.removeQueries({ queryKey: ['data-fix-queue', fixId] })
+    },
+    [queryClient, fixId],
+  )
+
+  const toggle = (imageNo: string) => {
+    if (confirming || result) return
+    setUnticked((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(imageNo)) next.add(imageNo)
+      return next
+    })
+  }
+
+  const confirm = async () => {
+    if (confirming || items.length === 0) return
+    setConfirming(true)
+    setError(null)
+    try {
+      const done = await confirmMany(fixId, items)
+      setResult({ done, of: items.length })
+      void queryClient.removeQueries({ queryKey: ['data-fix-queue', fixId] })
+      void queryClient.invalidateQueries({ queryKey: ['data-fix-progress'] })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : (e as { message?: string })?.message ?? 'Unknown error'
+      setError({ message, signedOut: await isSignedOutError(e) })
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  const next = () => {
+    const last = records[records.length - 1]
+    if (!last) return
+    setAfter(last.image_no)
+    setUnticked(new Set())
+    setResult(null)
+    setError(null)
+  }
+
+  if (page.isPending) return <div className={box}>Loading…</div>
+  if (page.isError) {
+    return (
+      <div className={box}>
+        Couldn't load the grid.{' '}
+        <button type="button" onClick={() => void page.refetch()} className="text-[var(--accent)] underline">
+          Try again
+        </button>
+      </div>
+    )
+  }
+  if (records.length === 0) {
+    return (
+      <div className={`${box} flex flex-col items-center gap-4`}>
+        <p className="text-[var(--foreground)]">Nothing left for this filter</p>
+        <Link to="/admin/fixes" className={`${btn} no-underline`}>
+          Back to data fixes
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={() => void confirm()} disabled={confirming || items.length === 0 || !!result} className={btn}>
+          {confirming ? 'Confirming…' : `Confirm ${items.length}`}
+        </button>
+        {result && (
+          <>
+            <span role="status" className="text-sm text-[var(--foreground)]">
+              Confirmed {result.done} of {result.of}
+              {result.done < result.of && ' — the rest changed meanwhile and stay in the queue'}
+            </span>
+            <button type="button" onClick={next} className={btn}>
+              Next {GRID_SIZE}
+            </button>
+          </>
+        )}
+        {!result && <span className="text-sm text-[var(--muted)]">Click a photo to untick it; unticked ones stay for single review.</span>}
+      </div>
+      {error && (
+        <div role="alert" className="rounded-lg border border-[var(--danger)] px-3 py-2 text-sm text-[var(--danger)]">
+          {error.signedOut ? (
+            <>
+              Signed out — sign in again{' '}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => void adminSupabase.auth.signOut({ scope: 'local' })}
+              >
+                Sign in again
+              </button>
+            </>
+          ) : (
+            <>Couldn't confirm: {error.message}. Your ticks are kept — try again.</>
+          )}
+        </div>
+      )}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {records.map((r) => {
+          const ticked = !unticked.has(r.image_no)
+          return (
+            <li key={r.image_no}>
+              <button
+                type="button"
+                aria-pressed={ticked}
+                onClick={() => toggle(r.image_no)}
+                className={`relative block w-full overflow-hidden rounded-xl border-2 bg-[var(--surface)] text-left ${
+                  ticked ? 'border-[var(--accent)]' : 'border-[var(--border)] opacity-40'
+                }`}
+              >
+                <img
+                  src={getReviewImageUrl(r.image_no)}
+                  alt={r.image_no}
+                  loading="lazy"
+                  className="aspect-[4/3] w-full object-cover"
+                />
+                <span className="absolute inset-x-0 top-0 bg-[var(--surface)] px-2 py-1 text-sm font-semibold text-[var(--foreground)] opacity-90">
+                  {r.suggested_values.join('; ')}
+                </span>
+                <span className="absolute inset-x-0 bottom-0 flex justify-between bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--muted)] opacity-90">
+                  <span>{r.image_no}</span>
+                  <span aria-hidden>{ticked ? '✓' : '✕'}</span>
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}

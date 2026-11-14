@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { BulkConfirmGrid } from '@/components/admin/fixes/BulkConfirmGrid'
 import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
 import { ReviewCard, type CardAction, type CardNotice } from '@/components/admin/fixes/ReviewCard'
 import { useFixQueue } from '@/hooks/useFixQueue'
@@ -398,6 +399,10 @@ export function FixQueuePage() {
   const fixes = useQuery({ queryKey: ['data-fixes'], queryFn: getFixes })
   const fix = fixes.data?.find((f) => f.id === fixId)
 
+  const [grid, setGrid] = useState(false)
+  const highOnly = params.confidence.length === 1 && params.confidence[0] === 'high'
+  const showGrid = grid && highOnly
+
   const changeParams = (p: QueueParams) => {
     setSearchParams(serializeQueueParams(p), { replace: true })
   }
@@ -415,10 +420,24 @@ export function FixQueuePage() {
 
       <QueueFilters key={`${params.collection ?? ''}\u0000${params.text ?? ''}`} params={params} onChange={changeParams} />
 
+      {highOnly && fix && (
+        <div>
+          <button
+            type="button"
+            aria-pressed={showGrid}
+            onClick={() => setGrid((g) => !g)}
+            className={linkBtn}
+          >
+            {showGrid ? 'Single review' : 'Grid'}
+          </button>
+        </div>
+      )}
+
       {fixes.isError && <div className={box}>Something went wrong talking to the archive. Please try again.</div>}
       {fixes.isPending && <div className={box}>Loading…</div>}
       {fixes.isSuccess && !fix && <div className={box}>There is no data fix called “{fixId}”.</div>}
-      {fix && <ReviewQueue key={queueKey} fix={fix} params={params} />}
+      {fix && showGrid && <BulkConfirmGrid key={queueKey} fixId={fix.id} params={params} />}
+      {fix && !showGrid && <ReviewQueue key={queueKey} fix={fix} params={params} />}
     </div>
   )
 }
