@@ -8,6 +8,9 @@ describe('migrateLegacy', () => {
   it('does not duplicate locoName', () => {
     expect(migrateLegacy('["locoName"]')).toEqual(['locoName'])
   })
+  it('returns null when a v1 list holds only unknown ids (falls back to defaults)', () => {
+    expect(migrateLegacy('["bogus","nope"]')).toBeNull()
+  })
   it('returns null for missing or invalid input', () => {
     expect(migrateLegacy('junk')).toBeNull()
     expect(migrateLegacy(null)).toBeNull()

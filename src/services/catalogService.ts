@@ -35,7 +35,8 @@ function locoNumberPattern(value: string): string {
 // `or=` body for the loco-number filter. Rows with a reviewed/extracted value
 // (loco_numbers_text not null) match on it alone; rows with none yet fall back to the
 // description, so unreviewed records stay findable.
-export function locoNumberOrFilter(value: string): string {
+export function locoNumberOrFilter(value: string): string | null {
+  if (!value.trim()) return null // an empty pattern would match nearly every row
   const q = pgQuoteFilterValue(locoNumberPattern(value))
   return `loco_numbers_text.imatch.${q},and(loco_numbers_text.is.null,description.imatch.${q})`
 }
@@ -92,7 +93,8 @@ export async function searchCatalog({
   if (filters?.gauge) builder = builder.ilike('gauge', escapeLikePattern(filters.gauge))
   // Exact date matches date_taken only -- photos with just a text "circa" date have no
   // date_taken and are deliberately not matched by a date search.
-  if (filters?.loco) builder = builder.or(locoNumberOrFilter(filters.loco))
+  const locoFilter = filters?.loco ? locoNumberOrFilter(filters.loco) : null
+  if (locoFilter) builder = builder.or(locoFilter)
   if (filters?.locoName) {
     for (const term of locoNameTerms(filters.locoName)) {
       builder = builder.ilike('loco_names_text', `%${escapeLikePattern(term)}%`)
