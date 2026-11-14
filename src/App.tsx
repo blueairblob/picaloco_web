@@ -4,6 +4,7 @@ import { SearchPage } from '@/pages/SearchPage'
 import { PhotoDetailPage } from '@/pages/PhotoDetailPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { DataFixesPage } from '@/pages/DataFixesPage'
+import { FixQueuePage } from '@/pages/FixQueuePage'
 import { RequireAdmin } from '@/components/admin/RequireAdmin'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
@@ -16,7 +17,7 @@ export function App() {
         <Route path="/photo/:imageNo" element={<PhotoDetailPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/fixes" element={<RequireAdmin><DataFixesPage /></RequireAdmin>} />
-        <Route path="/admin/fixes/:fixId" element={<RequireAdmin><DataFixesPage /></RequireAdmin>} />
+        <Route path="/admin/fixes/:fixId" element={<RequireAdmin><FixQueuePage /></RequireAdmin>} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <footer className="mx-auto w-full max-w-6xl px-6 py-6 text-center">

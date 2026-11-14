@@ -1,4 +1,5 @@
 import { adminSupabase } from '@/lib/supabase/adminClient'
+import type { QueueParams } from '@/lib/queueParams'
 
 export type FixConfidence = 'none' | 'low' | 'med' | 'high'
 export type FixStatus = 'extracted' | 'verified' | 'corrected' | 'none_visible' | 'no_loco'
@@ -71,6 +72,128 @@ export function summariseProgress(rows: ProgressRow[], fixId: string): FixProgre
       b.total += r.n
       if (open) b.open += r.n
     }
+  }
+  return out
+}
+
+export interface QueueRecord {
+  image_no: string
+  description: string | null
+  collection: string | null
+  date_taken: string | null
+  cd_no: string | null
+  values: string[]
+  suggested_values: string[]
+  confidence: FixConfidence
+  status: FixStatus
+  needs_recheck: boolean
+  // Kept exactly as the server sent it (microseconds): it is the optimistic-lock token.
+  updated_at: string
+}
+
+export type ReviewOutcome =
+  | { ok: true; updated_at: string }
+  | { ok: false; reason: 'stale' | 'forbidden' | 'signed-out' | 'error'; message: string }
+
+export async function getQueuePage(
+  fixId: string,
+  p: QueueParams,
+  after: string | null,
+  limit = 25,
+): Promise<QueueRecord[]> {
+  const { data, error } = await adminSupabase.rpc('data_fix_queue', {
+    p_fix_id: fixId,
+    p_confidence: p.confidence.length > 0 ? p.confidence : null,
+    p_status: p.status,
+    p_include_recheck: p.includeRecheck,
+    p_collection: p.collection,
+    p_text: p.text,
+    p_after: after,
+    p_limit: limit,
+  })
+  if (error) throw error
+  return ((data ?? []) as QueueRecord[]).map((r) => ({
+    ...r,
+    values: r.values ?? [],
+    suggested_values: r.suggested_values ?? [],
+  }))
+}
+
+export async function getValue(
+  fixId: string,
+  imageNo: string,
+): Promise<Pick<QueueRecord, 'values' | 'suggested_values' | 'status' | 'needs_recheck' | 'updated_at'> | null> {
+  const { data, error } = await adminSupabase
+    .from('data_fix_value')
+    .select('values,suggested_values,status,needs_recheck,updated_at')
+    .eq('image_no', imageNo)
+    .eq('fix_id', fixId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  const row = data as Pick<QueueRecord, 'values' | 'suggested_values' | 'status' | 'needs_recheck' | 'updated_at'>
+  return { ...row, values: row.values ?? [], suggested_values: row.suggested_values ?? [] }
+}
+
+export function mapReviewError(err: {
+  code?: string
+  message?: string
+  status?: number
+}): 'stale' | 'forbidden' | 'signed-out' | 'error' {
+  if (err.code === '40001') return 'stale'
+  if (err.status === 401 || err.code === 'PGRST301' || /JWT expired/i.test(err.message ?? '')) return 'signed-out'
+  if (err.code === '42501') return 'forbidden'
+  return 'error'
+}
+
+export async function reviewValue(i: {
+  imageNo: string
+  fixId: string
+  values: string[]
+  status: Exclude<FixStatus, 'extracted'>
+  expectedUpdatedAt: string
+}): Promise<ReviewOutcome> {
+  try {
+    const { data, error, status } = await adminSupabase.rpc('review_fix_value', {
+      p_image_no: i.imageNo,
+      p_fix_id: i.fixId,
+      p_values: i.values,
+      p_status: i.status,
+      // Never parse into a Date: that drops the microseconds and every save turns stale.
+      p_expected_updated_at: i.expectedUpdatedAt,
+    })
+    if (error) {
+      let reason = mapReviewError({ ...error, status })
+      // A cleared or lost session falls back to the anon key, which the server answers with 42501.
+      if (reason === 'forbidden') {
+        const { data: s } = await adminSupabase.auth.getSession()
+        if (!s.session) reason = 'signed-out'
+      }
+      return { ok: false, reason, message: error.message }
+    }
+    const row = (Array.isArray(data) ? data[0] : data) as { updated_at?: string } | null
+    if (!row?.updated_at) return { ok: false, reason: 'error', message: 'The server returned no record.' }
+    return { ok: true, updated_at: row.updated_at }
+  } catch (e) {
+    return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export function normaliseValues(input: string): string[] {
+  const out: string[] = []
+  for (const part of input.split(/[\n;]/)) {
+    const v = part.trim()
+    if (v && !out.includes(v)) out.push(v)
+  }
+  return out
+}
+
+// Soft warnings only: the reviewer may still save.
+export function formatWarnings(values: string[]): string[] {
+  const out: string[] = []
+  for (const v of values) {
+    if ([...v].length > 20) out.push(`"${v}" is longer than 20 characters`)
+    if (/[^A-Za-z0-9 ./\-'&]/.test(v)) out.push(`"${v}" contains unusual characters`)
   }
   return out
 }
