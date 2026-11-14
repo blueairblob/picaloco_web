@@ -13,9 +13,13 @@ export function SignInForm({ onSignIn }: { onSignIn: (email: string, password: s
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    const message = await onSignIn(email, password)
-    setError(message)
-    setSubmitting(false)
+    try {
+      setError(await onSignIn(email, password))
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Sign-in failed. Check your connection and try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

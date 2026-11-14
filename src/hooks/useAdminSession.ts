@@ -20,6 +20,8 @@ export function useAdminSession() {
     const { data } = adminSupabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user.id ?? null)
       setEmail(session?.user.email ?? null)
+      // Drop the cached answer on sign-out so the next sign-in re-checks is_admin.
+      if (!session) setAdminCheck(null)
     })
     return () => data.subscription.unsubscribe()
   }, [])
@@ -27,9 +29,15 @@ export function useAdminSession() {
   useEffect(() => {
     if (!userId) return
     let cancelled = false
-    adminSupabase.rpc('is_admin').then(({ data, error }) => {
-      if (!cancelled) setAdminCheck({ userId, isAdmin: !error && data === true })
-    })
+    adminSupabase
+      .rpc('is_admin')
+      .then(
+        ({ data, error }) => !error && data === true,
+        () => false,
+      )
+      .then((isAdmin) => {
+        if (!cancelled) setAdminCheck({ userId, isAdmin })
+      })
     return () => {
       cancelled = true
     }
