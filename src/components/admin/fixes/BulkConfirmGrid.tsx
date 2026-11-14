@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { serializeQueueParams, type QueueParams } from '@/lib/queueParams'
@@ -17,6 +17,8 @@ export const GRID_SIZE = 24
 const box = 'rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 text-center text-[var(--muted)]'
 const btn =
   'rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--foreground)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50'
+
+const overlayBg = { background: 'color-mix(in srgb, var(--surface) 85%, transparent)' }
 
 interface Props {
   fixId: string
@@ -42,14 +44,6 @@ export function BulkConfirmGrid({ fixId, params }: Props) {
   })
   const records: QueueRecord[] = useMemo(() => page.data ?? [], [page.data])
   const items = useMemo(() => toConfirmItems(records, unticked), [records, unticked])
-
-  // The single-review queue holds its own copies (with now-stale updated_at); drop it on leaving.
-  useEffect(
-    () => () => {
-      void queryClient.removeQueries({ queryKey: ['data-fix-queue', fixId] })
-    },
-    [queryClient, fixId],
-  )
 
   const toggle = (imageNo: string) => {
     if (confirming || result) return
@@ -115,16 +109,14 @@ export function BulkConfirmGrid({ fixId, params }: Props) {
           {confirming ? 'Confirming…' : `Confirm ${items.length}`}
         </button>
         {result && (
-          <>
-            <span role="status" className="text-sm text-[var(--foreground)]">
-              Confirmed {result.done} of {result.of}
-              {result.done < result.of && ' — the rest changed meanwhile and stay in the queue'}
-            </span>
-            <button type="button" onClick={next} className={btn}>
-              Next {GRID_SIZE}
-            </button>
-          </>
+          <span role="status" className="text-sm text-[var(--foreground)]">
+            Confirmed {result.done} of {result.of}
+            {result.done < result.of && ' — the rest changed meanwhile and stay in the queue'}
+          </span>
         )}
+        <button type="button" onClick={next} disabled={confirming} className={btn}>
+          Next {GRID_SIZE}
+        </button>
         {!result && <span className="text-sm text-[var(--muted)]">Click a photo to untick it; unticked ones stay for single review.</span>}
       </div>
       {error && (
@@ -164,10 +156,10 @@ export function BulkConfirmGrid({ fixId, params }: Props) {
                   loading="lazy"
                   className="aspect-[4/3] w-full object-cover"
                 />
-                <span className="absolute inset-x-0 top-0 bg-[var(--surface)] px-2 py-1 text-sm font-semibold text-[var(--foreground)] opacity-90">
+                <span className="absolute inset-x-0 top-0 px-2 py-1 text-sm font-semibold text-[var(--foreground)]" style={overlayBg}>
                   {r.suggested_values.join('; ')}
                 </span>
-                <span className="absolute inset-x-0 bottom-0 flex justify-between bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--muted)] opacity-90">
+                <span className="absolute inset-x-0 bottom-0 flex justify-between px-2 py-0.5 text-xs text-[var(--muted)]" style={overlayBg}>
                   <span>{r.image_no}</span>
                   <span aria-hidden>{ticked ? '✓' : '✕'}</span>
                 </span>

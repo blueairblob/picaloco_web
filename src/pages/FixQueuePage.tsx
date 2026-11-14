@@ -402,6 +402,7 @@ export function FixQueuePage() {
   const [grid, setGrid] = useState(false)
   const highOnly = params.confidence.length === 1 && params.confidence[0] === 'high'
   const showGrid = grid && highOnly
+  if (grid && !highOnly) setGrid(false) // filter moved off high-only: forget the grid choice
 
   const changeParams = (p: QueueParams) => {
     setSearchParams(serializeQueueParams(p), { replace: true })
