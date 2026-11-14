@@ -490,3 +490,67 @@ just deployed.
 
 `picaloco_agent` still isn't repackaged/distributed yet — this gate makes that safe to do via a
 plain weblink once it is.
+
+## 12. Data Fixes (`/admin/fixes`)
+
+The client reviews values extracted from `rat.catalog.description`. The first fixes are
+`loco_number` and `loco_name`. Design:
+`docs/superpowers/specs/2026-11-14-data-fixes-loco-number-name-design.md`.
+
+**Where the data lives.** `rat.data_fix` (one row per fix, including the client's format
+`instructions`), `rat.data_fix_value` (one row per photo per fix, keyed on `image_no`, no FK to
+`rat.catalog`), `rat.data_fix_history` (every change, append-only) and `rat.admin_user` (who may
+review). The FileMaker → Postgres loader never writes these tables. The DDL is in
+`filemaker_sync/supabase/schema/add_data_fix_tables.sql` (see §3.1).
+
+**The protection promise.** A value a person has reviewed (status `verified`, `corrected`,
+`none_visible` or `no_loco`) can't be overwritten by the extractor or a sync. A trigger rejects
+any change to a reviewed value that doesn't come from a review RPC. When a photo's description
+changes in FileMaker, the extractor refreshes only the *suggestion* and sets `needs_recheck`. The
+reviewed value stays. Rechecks show on the list page as "Needs recheck (N)".
+
+**Admin accounts.**
+1. Keep public sign-up off: `DISABLE_SIGNUP=true` in the Supabase docker `.env`, then
+   `docker compose up -d auth`. Verify with
+   `curl -s https://huey.taila2eeb2.ts.net/auth/v1/settings -H "apikey: <anon key>"`, which should
+   show `"disable_signup":true`.
+2. Create the user in Studio → Authentication → Add user, ticking "Auto Confirm User".
+3. Grant review rights:
+   ```sql
+   insert into rat.admin_user(user_id) select id from auth.users where email = '<email>';
+   ```
+   To revoke: `delete from rat.admin_user where user_id = (select id from auth.users where email = '<email>');`.
+   A signed-in account that isn't listed sees "This account isn't an admin." and no data.
+
+The admin pages use a separate supabase-js client (`src/lib/supabase/adminClient.ts`, session key
+`picaloco-admin-auth`). The public client stays anonymous.
+
+**RPCs** (all `SECURITY DEFINER`, `EXECUTE` for `authenticated` only, and all but `is_admin`
+raise `42501` for non-admins):
+
+| RPC | Purpose |
+|---|---|
+| `is_admin()` | Is the signed-in user in `rat.admin_user` |
+| `data_fix_progress()` | Counts by fix, status, confidence and `needs_recheck` |
+| `data_fix_queue(p_fix_id, p_confidence, p_status, p_include_recheck, p_collection, p_text, p_after, p_limit)` | One page of the review queue, keyset on `image_no` |
+| `review_fix_value(p_image_no, p_fix_id, p_values, p_status, p_expected_updated_at)` | Save one review. `40001` means someone else changed it first (optimistic lock on `updated_at`, so the exact string is passed through) |
+| `confirm_fix_values(p_fix_id, p_items)` | Bulk confirm `{image_no, updated_at}` items; only rows still `extracted` and unchanged are confirmed |
+| `data_fix_orphans()` | Reviewed rows whose photo is no longer in `rat.catalog` |
+
+**Filling and refreshing** (from `filemaker_sync`, WSL):
+```bash
+venv/bin/python scripts/extract_loco_fields.py --target-profile oci           # dry run: counts + CSV
+venv/bin/python scripts/extract_loco_fields.py --apply --target-profile oci   # write (never touches reviewed values)
+```
+Delta Sync (`run_incremental_sync.py`) also refreshes the loco fields for each verified record
+after every sync. `picaloco_agent`'s vendored copy of that script doesn't do this yet.
+
+**Preservation check.** Run it before and after any reload or full sync. The `checksum` must not
+change except through the client's own reviews:
+```bash
+venv/bin/python scripts/data_fix_preservation_check.py --target-profile oci
+# baseline 2026-11-14, before any review: {"reviewed": 0, "checksum": "d41d8cd98f00b204e9800998ecf8427e"}
+```
+
+**Backups.** The nightly `rat-backup.sh db` dump covers the whole `rat` schema, so the Data Fixes
+tables are included (§10).

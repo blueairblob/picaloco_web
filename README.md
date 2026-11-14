@@ -7,6 +7,19 @@ much simpler alternative to the over-specced, unfinished `trainpixelfolio` mobil
 **Live at https://picaloco-web.vercel.app.** For a full rebuild-from-scratch guide (backend setup,
 deployment, troubleshooting), see [`DEVOPS.md`](./DEVOPS.md).
 
+## Features
+
+- **Search and filters**: by image number or keyword, plus a filter panel. The panel includes
+  **Loco number** and **Loco name**, which search the values extracted from each photo's
+  description and reviewed by the client. Loco number falls back to a description search for
+  photos with no value yet.
+- **Photo detail**: metadata, including the photo's loco number(s) and name(s).
+- **Migration status** (`/admin`, public): how fresh the FileMaker → Postgres sync is.
+- **Data Fixes** (`/admin/fixes`, admin sign-in): the client reviews the extracted loco numbers
+  and names against each photo. They can confirm, correct, or mark "none visible" / "no loco", by
+  keyboard, or bulk-confirm high-confidence values in a grid. A reviewed value is protected in
+  the database and survives every future sync. See `DEVOPS.md` §12.
+
 ## Stack
 
 Vite + React + TypeScript + Tailwind CSS 4 + react-router + `@supabase/supabase-js` + React Query.
@@ -42,18 +55,25 @@ api/
   agent-auth.ts        picaloco_agent's activation gate (Vercel serverless function, see §11)
 src/
   lib/supabase/       Supabase client + hand-authored types (reference only, see client.ts)
-  services/           catalogService (search/detail), lookupService (facets), images (URL builder)
-  hooks/               useCatalogSearch, useLookupOptions, useDebouncedValue
+  lib/supabase/adminClient.ts  separate signed-in client for the admin pages
+  lib/                 queueParams, reviewKeys, reviewDrafts, highlight (Data Fixes helpers)
+  services/           catalogService (search/detail), lookupService (facets), images (URL builder),
+                       dataFixService (Data Fixes RPCs)
+  hooks/               useCatalogSearch, useLookupList, useDebouncedValue, useAdminSession,
+                       useFixQueue, useVisibleFilters
   components/
     search/            SearchBar, FilterPanel, FilterChip
     results/           PhotoGrid, PhotoCard, Pagination
     detail/            PhotoDetailView, MetadataRow
+    admin/             RequireAdmin, SignInForm, sync status; fixes/ = ReviewCard, QueueFilters,
+                       BulkConfirmGrid, FixProgressCard
     layout/            Header
-  pages/               SearchPage (/), PhotoDetailPage (/photo/:imageNo), NotFoundPage
+  pages/               SearchPage (/), PhotoDetailPage (/photo/:imageNo), AdminPage (/admin),
+                       DataFixesPage (/admin/fixes), FixQueuePage (/admin/fixes/:fixId), NotFoundPage
 ```
 
 ## Known gaps
 
 See `DEVOPS.md` §8 for the current, maintained list (dropdown truncation on large facets, sparse
-real-image coverage, no automated tests). Both deploy and browser verification are done — this
+real-image coverage). Unit tests: `npm test` (vitest; pure helpers only, no UI tests). Both deploy and browser verification are done — this
 section used to say otherwise when the app was first scaffolded.
