@@ -105,6 +105,7 @@ export interface ReviewCardProps {
   notVisibleLabel: string
   draft: string
   dirty: boolean
+  draftOutdated: boolean
   saving: boolean
   notice: CardNotice | null
   textareaRef: RefObject<HTMLTextAreaElement | null>
@@ -120,6 +121,7 @@ export function ReviewCard({
   notVisibleLabel,
   draft,
   dirty,
+  draftOutdated,
   saving,
   notice,
   textareaRef,
@@ -197,9 +199,17 @@ export function ReviewCard({
             </span>{' '}
             ({CONFIDENCE_LABEL[record.confidence] ?? record.confidence} confidence)
           </p>
+          {draftOutdated && (
+            <p
+              role="alert"
+              className="rounded-lg border-2 border-[var(--warning)] px-3 py-2 text-sm font-medium text-[var(--warning)]"
+            >
+              Your unsaved edit was typed before this record changed — check it before saving.
+            </p>
+          )}
           {dirty && (
             <p className="text-sm text-[var(--warning)]">
-              Edited — <Kbd>Ctrl+Enter</Kbd> saves, <Kbd>Esc</Kbd> discards.
+              Edited — <Kbd>Ctrl+Enter</Kbd> saves; <Kbd>Esc</Kbd> in the box or Discard throws it away.
             </p>
           )}
           {warnings.length > 0 && (

@@ -7,7 +7,9 @@ vi.mock('@/lib/supabase/adminClient', () => ({
 }))
 
 import {
+  escapeLike,
   formatWarnings,
+  isSignedOutError,
   getQueuePage,
   mapReviewError,
   normaliseValues,
@@ -79,6 +81,33 @@ describe('getQueuePage', () => {
       p_after: 'arc00010',
       p_limit: 25,
     })
+  })
+})
+
+describe('escapeLike', () => {
+  it('escapes LIKE wildcards and the escape character', () => {
+    expect(escapeLike('50% off_peak \\ 3')).toBe('50\\% off\\_peak \\\\ 3')
+    expect(escapeLike('Flying Fox')).toBe('Flying Fox')
+  })
+
+  it('is applied to the description filter', async () => {
+    rpc.mockReset()
+    rpc.mockResolvedValue({ data: [], error: null })
+    await getQueuePage('loco_number', { ...DEFAULT_QUEUE_PARAMS, text: '100%' }, null)
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_text: '100\\%' })
+  })
+})
+
+describe('isSignedOutError', () => {
+  beforeEach(() => getSession.mockReset())
+
+  it('spots expired tokens and a 42501 without a session', async () => {
+    expect(await isSignedOutError({ code: 'PGRST301' })).toBe(true)
+    getSession.mockResolvedValue({ data: { session: null } })
+    expect(await isSignedOutError({ code: '42501' })).toBe(true)
+    getSession.mockResolvedValue({ data: { session: { user: {} } } })
+    expect(await isSignedOutError({ code: '42501' })).toBe(false)
+    expect(await isSignedOutError(new Error('Failed to fetch'))).toBe(false)
   })
 })
 

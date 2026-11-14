@@ -8,7 +8,6 @@ const KEYS: Record<string, ReviewAction> = {
   s: 'skip',
   arrowright: 'skip',
   arrowleft: 'back',
-  escape: 'cancelEdit',
 }
 
 export function isTypingTarget(target: { tagName: string; isContentEditable: boolean }): boolean {
@@ -17,11 +16,11 @@ export function isTypingTarget(target: { tagName: string; isContentEditable: boo
 }
 
 // Ctrl/Cmd+Enter (save edit) is handled by the page, which knows about modifiers.
+// Escape (discard the edit) only counts while typing, so a stray Escape never throws away work.
 export function shortcutFor(
   key: string,
   target: { tagName: string; isContentEditable: boolean },
 ): ReviewAction | null {
-  const action = KEYS[key.toLowerCase()] ?? null
-  if (isTypingTarget(target)) return action === 'cancelEdit' ? action : null
-  return action
+  if (isTypingTarget(target)) return key === 'Escape' ? 'cancelEdit' : null
+  return KEYS[key.toLowerCase()] ?? null
 }

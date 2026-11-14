@@ -43,6 +43,8 @@ export function useFixQueue(fixId: string, params: QueueParams) {
     patch,
     isPending: query.isPending,
     isError: query.isError,
+    // Only the first page failed (nothing loaded); a later page failing sets isFetchNextPageError.
+    isLoadingError: query.isLoadingError,
     error: query.error,
     refetch: query.refetch,
     hasNextPage: query.hasNextPage,

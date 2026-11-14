@@ -5,12 +5,13 @@ import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
 import { ReviewCard, type CardAction, type CardNotice } from '@/components/admin/fixes/ReviewCard'
 import { useFixQueue } from '@/hooks/useFixQueue'
 import { parseQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
-import { draftKey, reviewDrafts } from '@/lib/reviewDrafts'
+import { draftKey, isDraftOutdated, reviewDrafts } from '@/lib/reviewDrafts'
 import { isTypingTarget, shortcutFor } from '@/lib/reviewKeys'
 import { adminSupabase } from '@/lib/supabase/adminClient'
 import {
   getFixes,
   getValue,
+  isSignedOutError,
   normaliseValues,
   reviewValue,
   type DataFix,
@@ -70,8 +71,10 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
   const key = rec ? draftKey(fix.id, rec.image_no) : ''
   const baseline = rec ? baselineValues(rec) : []
   const storedDraft = rec ? reviewDrafts.get(key) : undefined
-  const draft = storedDraft ?? baseline.join('\n')
-  const dirty = storedDraft !== undefined && !sameValues(normaliseValues(storedDraft), baseline)
+  const draft = storedDraft?.text ?? baseline.join('\n')
+  const dirty = !!storedDraft && !sameValues(normaliseValues(storedDraft.text), baseline)
+  // Typed before this record last changed (elsewhere, or before a reload): never dropped, but flagged.
+  const draftOutdated = !!rec && !!storedDraft && dirty && isDraftOutdated(storedDraft, rec.updated_at)
 
   const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = queue
   useEffect(() => {
@@ -92,7 +95,14 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
 
   const setDraft = (text: string) => {
     if (!rec) return
-    reviewDrafts.set(key, text)
+    // Keep the original base while typing on: only an explicit save or the stale reload rebases it.
+    reviewDrafts.set(key, { text, baseUpdatedAt: storedDraft ? storedDraft.baseUpdatedAt : rec.updated_at })
+    rerender()
+  }
+
+  const rebaseDraft = (k: string, updatedAt: string) => {
+    const d = reviewDrafts.get(k)
+    if (d) reviewDrafts.set(k, { text: d.text, baseUpdatedAt: updatedAt })
     rerender()
   }
 
@@ -110,6 +120,23 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
   const signInAgain = () => {
     void adminSupabase.auth.signOut({ scope: 'local' })
   }
+
+  // Whether the latest page-load failure means the session is gone (shown as the signed-out notice).
+  // The answer is tagged with the error it was worked out for, so a cleared or newer error never
+  // reuses it.
+  const [signedOutCheck, setSignedOutCheck] = useState<{ error: unknown; signedOut: boolean } | null>(null)
+  const loadError = queue.error
+  useEffect(() => {
+    if (!loadError) return
+    let cancelled = false
+    void isSignedOutError(loadError).then((signedOut) => {
+      if (!cancelled) setSignedOutCheck({ error: loadError, signedOut })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [loadError])
+  const loadSignedOut = !!loadError && signedOutCheck?.error === loadError && signedOutCheck.signedOut
 
   const save = async (status: Exclude<FixStatus, 'extracted'>, values: string[]) => {
     if (!rec || savingRef.current) return
@@ -141,11 +168,13 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
         return
       }
       if (outcome.reason === 'stale') {
-        // Any typed draft stays in reviewDrafts and is shown over the reloaded values.
+        // Any typed draft stays in reviewDrafts and is shown over the reloaded values; this notice
+        // already tells the reviewer, so the draft is rebased onto the reloaded record.
         try {
           const fresh = await getValue(fix.id, target.image_no)
           if (fresh) {
             patch(target.image_no, fresh)
+            rebaseDraft(targetKey, fresh.updated_at)
             setNotice({ tone: 'info', text: 'Someone else changed this record — reloaded' })
           } else {
             setNotice({ tone: 'error', text: 'This record no longer exists — skip it.' })
@@ -179,7 +208,10 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
     switch (action) {
       case 'confirm':
         if (dirty) {
-          setNotice({ tone: 'info', text: 'You edited the values — Ctrl+Enter saves the edit, Esc discards it.' })
+          setNotice({
+            tone: 'info',
+            text: 'You edited the values — Ctrl+Enter saves the edit; Esc in the box or Discard throws it away.',
+          })
         } else if (baseline.length === 0) {
           setNotice({ tone: 'info', text: 'Nothing to confirm — press E to type a value, or use N / X.' })
         } else {
@@ -192,6 +224,15 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
           setNotice({
             tone: 'info',
             text: `The box is empty — use N (${notVisibleLabel(fix.id)}) or X (No loco in photo).`,
+          })
+          return
+        }
+        if (draftOutdated) {
+          // Make the reviewer look first: this press acknowledges, the next one saves.
+          rebaseDraft(key, rec.updated_at)
+          setNotice({
+            tone: 'info',
+            text: 'This record changed after you typed your edit. Check it against the photo, then press Ctrl+Enter again to save.',
           })
           return
         }
@@ -257,31 +298,52 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onKeyDown])
 
+  const signedOutNotice = (
+    <>
+      Signed out — sign in again{' '}
+      <button type="button" onClick={signInAgain} className="text-[var(--accent)] underline">
+        Sign in again
+      </button>
+    </>
+  )
+
   if (queue.isPending) return <div className={box}>Loading…</div>
-  if (queue.isError) {
+  // Full-page error only when nothing loaded; refetch() is safe here because there's no review state.
+  if (queue.isLoadingError) {
     return (
       <div className={box}>
-        Couldn't load the queue.{' '}
-        <button type="button" onClick={() => void queue.refetch()} className="text-[var(--accent)] underline">
-          Try again
-        </button>
+        {loadSignedOut ? (
+          signedOutNotice
+        ) : (
+          <>
+            Couldn't load the queue.{' '}
+            <button type="button" onClick={() => void queue.refetch()} className="text-[var(--accent)] underline">
+              Try again
+            </button>
+          </>
+        )}
       </div>
     )
   }
 
+  // A later page failed: never refetch() (it reloads every page, dropping reviewed records and
+  // shifting positions) — retry just the next page.
+  const moreFailed = queue.isFetchNextPageError ? (
+    loadSignedOut ? (
+      signedOutNotice
+    ) : (
+      <>
+        Couldn't load more records.{' '}
+        <button type="button" onClick={() => void fetchNextPage()} className="text-[var(--accent)] underline">
+          Retry
+        </button>
+      </>
+    )
+  ) : null
+
   if (!rec) {
     if (queue.hasNextPage || queue.isFetchingNextPage) {
-      if (queue.isFetchNextPageError) {
-        return (
-          <div className={box}>
-            Couldn't load more records.{' '}
-            <button type="button" onClick={() => void fetchNextPage()} className="text-[var(--accent)] underline">
-              Try again
-            </button>
-          </div>
-        )
-      }
-      return <div className={box}>Loading more…</div>
+      return <div className={box}>{moreFailed ?? 'Loading more…'}</div>
     }
     return (
       <div className={`${box} flex flex-col items-center gap-4`}>
@@ -302,21 +364,29 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
 
   const total = `${records.length}${queue.hasNextPage ? '+' : ''}`
   return (
-    <ReviewCard
-      key={rec.image_no}
-      record={rec}
-      position={`Record ${index + 1} of ${total}`}
-      instructions={fix.instructions ?? ''}
-      notVisibleLabel={notVisibleLabel(fix.id)}
-      draft={draft}
-      dirty={dirty}
-      saving={saving}
-      notice={notice}
-      textareaRef={textareaRef}
-      onDraftChange={setDraft}
-      onAction={run}
-      canGoBack={index > 0}
-    />
+    <>
+      {moreFailed && (
+        <div role="status" className="rounded-lg border border-[var(--danger)] px-3 py-2 text-sm text-[var(--danger)]">
+          {moreFailed}
+        </div>
+      )}
+      <ReviewCard
+        key={rec.image_no}
+        record={rec}
+        position={`Record ${index + 1} of ${total}`}
+        instructions={fix.instructions ?? ''}
+        notVisibleLabel={notVisibleLabel(fix.id)}
+        draft={draft}
+        dirty={dirty}
+        draftOutdated={draftOutdated}
+        saving={saving}
+        notice={notice}
+        textareaRef={textareaRef}
+        onDraftChange={setDraft}
+        onAction={run}
+        canGoBack={index > 0}
+      />
+    </>
   )
 }
 

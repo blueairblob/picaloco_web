@@ -95,6 +95,11 @@ export type ReviewOutcome =
   | { ok: true; updated_at: string }
   | { ok: false; reason: 'stale' | 'forbidden' | 'signed-out' | 'error'; message: string }
 
+// The server matches p_text with ILIKE; escape its wildcards so the reviewer's text matches literally.
+export function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, '\\$&')
+}
+
 export async function getQueuePage(
   fixId: string,
   p: QueueParams,
@@ -107,7 +112,7 @@ export async function getQueuePage(
     p_status: p.status,
     p_include_recheck: p.includeRecheck,
     p_collection: p.collection,
-    p_text: p.text,
+    p_text: p.text ? escapeLike(p.text) : null,
     p_after: after,
     p_limit: limit,
   })
@@ -146,6 +151,24 @@ export function mapReviewError(err: {
   return 'error'
 }
 
+async function hasSession(): Promise<boolean> {
+  try {
+    const { data } = await adminSupabase.auth.getSession()
+    return !!data.session
+  } catch {
+    return false
+  }
+}
+
+// True when a failed call means the admin session is gone. A cleared or lost session falls back to
+// the anon key, which the server answers with 42501, so that code counts too when there's no session.
+export async function isSignedOutError(err: unknown): Promise<boolean> {
+  const e = (err && typeof err === 'object' ? err : {}) as { code?: string; message?: string; status?: number }
+  const reason = mapReviewError(e)
+  if (reason === 'signed-out') return true
+  return reason === 'forbidden' && !(await hasSession())
+}
+
 export async function reviewValue(i: {
   imageNo: string
   fixId: string
@@ -164,11 +187,7 @@ export async function reviewValue(i: {
     })
     if (error) {
       let reason = mapReviewError({ ...error, status })
-      // A cleared or lost session falls back to the anon key, which the server answers with 42501.
-      if (reason === 'forbidden') {
-        const { data: s } = await adminSupabase.auth.getSession()
-        if (!s.session) reason = 'signed-out'
-      }
+      if (reason === 'forbidden' && !(await hasSession())) reason = 'signed-out'
       return { ok: false, reason, message: error.message }
     }
     const row = (Array.isArray(data) ? data[0] : data) as { updated_at?: string } | null

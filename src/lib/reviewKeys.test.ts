@@ -14,6 +14,8 @@ describe('shortcutFor', () => {
     expect(shortcutFor('Enter', div)).toBe('confirm')
     expect(shortcutFor('X', div)).toBe('noLoco')
     expect(shortcutFor('q', div)).toBeNull()
+    // Escape only discards an edit from inside the edit box.
+    expect(shortcutFor('Escape', div)).toBeNull()
   })
 
   it('only handles Escape while typing', () => {
