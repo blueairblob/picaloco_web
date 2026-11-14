@@ -83,63 +83,36 @@ the request times out, rebuild as follows.
 
 ### 3.1 Recreate the view
 
-Run this against the `oci` Postgres instance (psql, or Supabase Studio's SQL editor at
-`http://<oci-host>:3000` if you have Tailscale access to it). It's additive — safe to run even if
-some of it already exists (drop-and-recreate the view specifically if it's stale).
+The view's single source of truth is SQL in the sibling `filemaker_sync` repo. Do not copy it
+here; it drifts. Run one of these against the `oci` Postgres instance (psql, or Supabase Studio's
+SQL editor at `http://<oci-host>:3000` if you have Tailscale access). Both are idempotent.
 
-```sql
-CREATE VIEW rat.mobile_catalog_view AS
-SELECT c.image_no,
-    c.category,
-    c.date_taken,
-    c.circa,
-    c.imprecise_date,
-    c.description,
-    c.gauge,
-    concat('https://cdn.example.com/thumbnails/', c.image_no, '.webp') AS thumbnail_url,
-    cnt.name AS country,
-    org.name AS organisation,
-    org.type AS organisation_type,
-    l.name AS location,
-    r.name AS route,
-    col.name AS collection,
-    p.name AS photographer,
-    u.prints_allowed,
-    u.internet_use,
-    u.publications_use,
-    array_agg(DISTINCT jsonb_build_object('builder_name', b.name, 'builder_code', b.code, 'works_number', cb.works_number, 'year_built', cb.year_built, 'plant_code', cb.plant_code, 'builder_order', cb.builder_order)) FILTER (WHERE b.id IS NOT NULL) AS builders,
-    pm.file_type,
-    pm.width,
-    pm.height,
-    pm.resolution,
-    pm.colour_space,
-    pm.colour_mode,
-    c.cd_no,
-    c.cd_no_hr,
-    c.bw_image_no,
-    c.bw_cd_no,
-    c.active_area,
-    c.corporate_body,
-    c.facility,
-    c.modified_date AS last_updated
-   FROM rat.catalog c
-     LEFT JOIN rat.catalog_metadata cm ON c.id = cm.catalog_id
-     LEFT JOIN rat.organisation org ON cm.organisation_id = org.id
-     LEFT JOIN rat.country cnt ON org.country_id = cnt.id
-     LEFT JOIN rat.location l ON cm.location_id = l.id
-     LEFT JOIN rat.route r ON cm.route_id = r.id
-     LEFT JOIN rat.collection col ON cm.collection_id = col.id
-     LEFT JOIN rat.photographer p ON cm.photographer_id = p.id
-     LEFT JOIN rat.usage u ON c.id = u.catalog_id
-     LEFT JOIN rat.catalog_builder cb ON c.id = cb.catalog_id
-     LEFT JOIN rat.builder b ON cb.builder_id = b.id
-     LEFT JOIN rat.picture_metadata pm ON c.id = pm.catalog_id
-  GROUP BY c.id, c.image_no, c.category, c.date_taken, c.circa, c.imprecise_date, c.description, c.gauge, cnt.name, org.name, org.type, l.name, r.name, col.name, p.name, u.prints_allowed, u.internet_use, u.publications_use, pm.file_type, pm.width, pm.height, pm.resolution, pm.colour_space, pm.colour_mode, c.cd_no, c.cd_no_hr, c.bw_image_no, c.bw_cd_no, c.active_area, c.corporate_body, c.facility, c.modified_date;
+- **Fresh host:** `filemaker_sync/supabase/schema/bootstrap_rat_schema.sql`. It creates every
+  `rat` table, the Data Fixes tables, the view and the grants below.
+- **Existing host missing only the Data Fixes part:**
+  `filemaker_sync/supabase/schema/add_data_fix_tables.sql`. It runs as one transaction.
+
+On huey, after copying the file to `/tmp/`:
+
+```bash
+cd /home/huey/supabase && docker compose exec -T db psql -U postgres -d postgres \
+  -v ON_ERROR_STOP=1 < /tmp/add_data_fix_tables.sql
 ```
 
-Note: `thumbnail_url` here is a dead placeholder (`cdn.example.com`) — the app doesn't use it; it
-builds real image URLs itself from `VITE_IMAGES_BASE_URL` (§5). Leave it as-is for fidelity to the
-original design, or drop the column if you're rebuilding cleanly.
+The view has 37 columns. The last four (added 2026-11-14) come from `rat.data_fix_value`, the
+client-reviewed "Data Fixes":
+
+| Column | Type | Meaning |
+|---|---|---|
+| `loco_numbers` / `loco_names` | `text[]` | Extracted or reviewed values; `{}` when there are none |
+| `loco_numbers_text` / `loco_names_text` | `text` | Values joined with `; ` for search. `NULL` = no row yet, or an unreviewed empty extraction; `''` = reviewed as "none visible" / "no loco" |
+
+After a fresh install, fill the Data Fixes tables from the descriptions:
+`venv/bin/python scripts/extract_loco_fields.py --apply --target-profile oci` (in
+`filemaker_sync`). It never overwrites a reviewed value.
+
+Note: `thumbnail_url` in the view is a dead placeholder (`cdn.example.com`). The app doesn't use
+it; it builds real image URLs itself from `VITE_IMAGES_BASE_URL` (§5).
 
 ### 3.2 Scope `anon`'s access
 
@@ -151,9 +124,17 @@ exposed schema. **This is not safe once the schema is public** — `rat.catalog`
 GRANT SELECT ON rat.mobile_catalog_view TO anon;
 GRANT SELECT ON rat.photographer, rat.location, rat.organisation,
                 rat.collection, rat.country, rat.route, rat.builder TO anon;
-REVOKE SELECT ON rat.catalog, rat.catalog_metadata, rat.catalog_builder,
-                 rat.usage, rat.picture_metadata FROM anon;
+REVOKE ALL ON rat.catalog, rat.catalog_metadata, rat.catalog_builder,
+              rat.usage, rat.picture_metadata FROM anon, authenticated;
 ```
+
+`authenticated` is revoked too: since the Data Fixes admin sign-in (2026-11-14), signed-in
+sessions are real, and live `oci`'s default ACL on schema `rat` had granted `authenticated`
+`SELECT` on these tables. Signed-in users get only `SELECT` on `rat.data_fix`,
+`rat.data_fix_value` and `rat.data_fix_history` (RLS: admins listed in `rat.admin_user` only), and
+`EXECUTE` on the review RPCs. `anon` gets nothing on the Data Fixes tables; the public sees the
+values only through the view. All of this is in the two SQL files from §3.1. Also keep Auth
+sign-up off (`DISABLE_SIGNUP=true` in the Supabase docker `.env`); admins are created by hand.
 
 Verify:
 
@@ -162,6 +143,9 @@ SELECT table_name FROM information_schema.role_table_grants
 WHERE grantee = 'anon' AND table_schema = 'rat' ORDER BY 1;
 -- Expect exactly: builder, collection, country, location, mobile_catalog_view,
 --                 organisation, photographer, route
+
+SELECT has_table_privilege('authenticated', 'rat.catalog', 'SELECT');
+-- Expect: f
 ```
 
 ### 3.3 Make it public (Tailscale Funnel)
