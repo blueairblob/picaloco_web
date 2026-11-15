@@ -280,14 +280,19 @@ function ReviewQueue({
       touched(rec.image_no),
     )
     if (carried.length > 0) {
-      const c = companionViews.find((v) => v.fixId === carried[0])
-      if (c) {
-        const vals = normaliseValues(c.draft)
+      // Name every carried edit: the next save action saves all of them.
+      const shown = companionViews.filter((v) => carried.includes(v.fixId))
+      if (shown.length > 0) {
+        const parts = shown.map((c) => {
+          const vals = normaliseValues(c.draft)
+          return `${c.title}: ${vals.length > 0 ? vals.join('; ') : c.notVisibleLabel}`
+        })
+        const one = shown.length === 1
         setNotice({
           tone: 'info',
-          text: `This photo has an unsaved ${c.title} edit from earlier: ${vals.length > 0 ? vals.join('; ') : c.notVisibleLabel}. Press again to save it with this record, or discard it.`,
+          text: `This photo has ${one ? 'an unsaved edit' : 'unsaved edits'} from earlier (${parts.join(' · ')}). Press again to save ${one ? 'it' : 'them'} with this record, or discard ${one ? 'it' : 'them'}.`,
         })
-        document.getElementById(`review-values-${c.fixId}`)?.scrollIntoView({ block: 'center' })
+        document.getElementById(`review-values-${shown[0].fixId}`)?.scrollIntoView({ block: 'center' })
       }
       for (const id of carried) touched(rec.image_no).add(id)
       return

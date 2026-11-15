@@ -342,6 +342,16 @@ able to fix the other while the photo is in front of them.
 - Keys: Ctrl+Enter in the other box is Save edit if the main box is edited, otherwise Confirm.
   No new single-letter shortcut (my call: the second box is reached with the mouse or Tab).
 - The grid (bulk confirm) does not show the other fix.
+- Added after the final review (2026-11-15):
+  - Whenever the other box holds an edit, a line beside the action buttons says what will also be
+    saved ("Also saves: Loco name → Dolly").
+  - An edit carried in from an earlier visit (the same photo's draft, typed on the other fix's own
+    queue and skipped) is never saved by the first save action on this card: that press shows the
+    edit, scrolls to it and saves nothing; the next save action saves it.
+  - Ctrl+Enter in the other box never "keeps" a main record that needs a recheck: the card asks the
+    volunteer to choose Keep current or Use suggestion for it, and saves nothing.
+  - The other box shows "Needs recheck" and "New suggestion" like the main one, and has a Discard
+    button.
 - A save from the other box counts towards that fix's progress, and its record leaves that fix's
   "not reviewed" queue like any other review.
 
