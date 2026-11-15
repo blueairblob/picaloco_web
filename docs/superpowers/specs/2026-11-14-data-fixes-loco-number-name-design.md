@@ -314,3 +314,52 @@ unticked ones stay in the queue for single review.
 - Loco name is added to the default public filters.
 - No confidence badges in public search.
 - The "high must be right at least 98% of the time" bar for the first apply.
+
+## 12. Amendment, 2026-11-15: number and name on one card; photo size
+
+Asked for by the user after the signed-in checks, before anything was merged. The volunteers are
+elderly or retired, so the photos must be easy to see, and a volunteer fixing one field should be
+able to fix the other while the photo is in front of them.
+
+### 12.1 The other fix on the same card (user's decision: editable, saved only if changed)
+
+- The review card for one fix also shows every other fix for the same photo (today: the number
+  card shows Loco name, the name card shows Loco number), below the main box, headed "Also on this
+  photo: <title>". Each has its own box, status, and suggestion or current review, laid out like
+  the main one.
+- Its box starts from the same baseline as the main box (`editBaseline`).
+- **It is saved only if the volunteer changes it.** An untouched box saves nothing, so nobody
+  confirms a name by accident while checking numbers.
+- An edited box is saved together with the next action on the card that saves: Confirm or Keep
+  current, Use suggestion, Save edit, Not visible, No loco. Its status follows the usual rule:
+  verified if the values are exactly its suggestion, otherwise corrected.
+- An edited box left empty is saved as that fix's "not visible" status (e.g. "No name visible"),
+  and the card says so under the box before saving. (My call.)
+- The other fix is saved first, with its own optimistic lock. If that save fails (stale, signed
+  out, error), the main save does not happen, the card stays put, and the notice names the field.
+- Skip and Back never save. An edit in the other box is kept as a draft, exactly like the main
+  box's drafts, and is there again on return. Esc in that box discards it.
+- Keys: Ctrl+Enter in the other box is Save edit if the main box is edited, otherwise Confirm.
+  No new single-letter shortcut (my call: the second box is reached with the mouse or Tab).
+- The grid (bulk confirm) does not show the other fix.
+- A save from the other box counts towards that fix's progress, and its record leaves that fix's
+  "not reviewed" queue like any other review.
+
+### 12.2 Photo size (user's decision: size buttons plus browser zoom)
+
+- A "Photo size: Normal / Large / Extra large" control on the review queue page, for both single
+  review and the grid. Large buttons, with the current choice clearly marked. It is remembered in
+  that browser (`localStorage`, falling back to Normal).
+- Grid columns, narrow / medium / wide screen: Normal 2 / 3 / 6 (as today), Large 1 / 2 / 4,
+  Extra large 1 / 2 / 3. The number label on each tile grows with the size.
+- The queue page may be wider than today's 72rem, so a large window shows bigger photos.
+- The single-review photo gets taller with the size.
+- Browser zoom (Ctrl +) keeps working; the layout breakpoints respond to it.
+
+### 12.3 Correction to §7: there is no full-size image
+
+§7 asked for "the full-size image, not the 320px mobile thumbnail". Measured on 2026-11-15, the
+FileMaker export's own originals (`exports/images/jpg` and `webp`) are only about 376px wide
+(median; 90% at or below 389px). Serving them would gain about 17% width for 2.5x the bytes, so
+the review screens keep the 320px thumbnails. Larger photo sizes will look soft. Sharper photos
+need new high-resolution scans from RAT (a client question).
