@@ -4,7 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import { BulkConfirmGrid } from '@/components/admin/fixes/BulkConfirmGrid'
 import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
 import { ReviewCard, type CardAction, type CardNotice } from '@/components/admin/fixes/ReviewCard'
+import { PhotoSizeControl } from '@/components/admin/fixes/PhotoSizeControl'
 import { useFixQueue } from '@/hooks/useFixQueue'
+import { usePhotoSize } from '@/hooks/usePhotoSize'
+import type { PhotoSize } from '@/lib/photoSize'
 import { emptyQueueMessage, parseQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
 import { canUseSuggestion, decideSave, editBaseline, isReviewed, sameValues, type SaveDecision } from '@/lib/reviewDecision'
 import { draftKey, isDraftOutdated, reviewDrafts } from '@/lib/reviewDrafts'
@@ -48,7 +51,7 @@ function ownsEnter(el: HTMLElement | null): boolean {
 
 const SAVE_ACTIONS: CardAction[] = ['confirm', 'useSuggestion', 'notVisible', 'noLoco', 'saveEdit']
 
-function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
+function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueueParams; photoSize: PhotoSize }) {
   const queue = useFixQueue(fix.id, params)
   const { records, patch } = queue
   const [index, setIndex] = useState(0)
@@ -375,6 +378,7 @@ function ReviewQueue({ fix, params }: { fix: DataFix; params: QueueParams }) {
       )}
       <ReviewCard
         key={rec.image_no}
+        photoSize={photoSize}
         record={rec}
         position={`Record ${index + 1} of ${total}`}
         instructions={fix.instructions ?? ''}
@@ -402,6 +406,7 @@ export function FixQueuePage() {
   const fix = fixes.data?.find((f) => f.id === fixId)
 
   const [grid, setGrid] = useState(false)
+  const [photoSize, setPhotoSize] = usePhotoSize()
   const highOnly = params.confidence.length === 1 && params.confidence[0] === 'high'
   const showGrid = grid && highOnly
   if (grid && !highOnly) setGrid(false) // filter moved off high-only: forget the grid choice
@@ -411,7 +416,7 @@ export function FixQueuePage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
+    <div className="mx-auto flex w-full max-w-[100rem] flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">
           {fix?.title ?? 'Data fix review'}
@@ -423,24 +428,27 @@ export function FixQueuePage() {
 
       <QueueFilters key={`${params.collection ?? ''}\u0000${params.text ?? ''}`} params={params} onChange={changeParams} />
 
-      {highOnly && fix && (
-        <div>
-          <button
-            type="button"
-            aria-pressed={showGrid}
-            onClick={() => setGrid((g) => !g)}
-            className={linkBtn}
-          >
-            {showGrid ? 'Single review' : 'Grid'}
-          </button>
+      {fix && (
+        <div className="flex flex-wrap items-center gap-4">
+          {highOnly && (
+            <button
+              type="button"
+              aria-pressed={showGrid}
+              onClick={() => setGrid((g) => !g)}
+              className={linkBtn}
+            >
+              {showGrid ? 'Single review' : 'Grid'}
+            </button>
+          )}
+          <PhotoSizeControl value={photoSize} onChange={setPhotoSize} />
         </div>
       )}
 
       {fixes.isError && <div className={box}>Something went wrong talking to the archive. Please try again.</div>}
       {fixes.isPending && <div className={box}>Loading…</div>}
       {fixes.isSuccess && !fix && <div className={box}>There is no data fix called “{fixId}”.</div>}
-      {fix && showGrid && <BulkConfirmGrid key={queueKey} fixId={fix.id} params={params} />}
-      {fix && !showGrid && <ReviewQueue key={queueKey} fix={fix} params={params} />}
+      {fix && showGrid && <BulkConfirmGrid key={queueKey} fixId={fix.id} params={params} photoSize={photoSize} />}
+      {fix && !showGrid && <ReviewQueue key={queueKey} fix={fix} params={params} photoSize={photoSize} />}
     </div>
   )
 }

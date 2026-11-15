@@ -1,5 +1,6 @@
 import { useState, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { highlightParts } from '@/lib/highlight'
+import { REVIEW_PHOTO_HEIGHT, type PhotoSize } from '@/lib/photoSize'
 import { canUseSuggestion, isReviewed } from '@/lib/reviewDecision'
 import type { ReviewAction } from '@/lib/reviewKeys'
 import type { QueueEntry } from '@/hooks/useFixQueue'
@@ -41,7 +42,7 @@ function Kbd({ children }: { children: ReactNode }) {
   return <kbd className={kbd}>{children}</kbd>
 }
 
-function ZoomImage({ imageNo }: { imageNo: string }) {
+function ZoomImage({ imageNo, photoSize }: { imageNo: string; photoSize: PhotoSize }) {
   const [zoomed, setZoomed] = useState(false)
   const [origin, setOrigin] = useState('50% 50%')
   const [failed, setFailed] = useState(false)
@@ -75,7 +76,7 @@ function ZoomImage({ imageNo }: { imageNo: string }) {
         src={getReviewImageUrl(imageNo)}
         alt={`Photo ${imageNo}`}
         onError={() => setFailed(true)}
-        className="mx-auto h-[min(60vh,32rem)] w-full object-contain transition-transform duration-150"
+        className={`mx-auto ${REVIEW_PHOTO_HEIGHT[photoSize]} w-full object-contain transition-transform duration-150`}
         style={{ transform: zoomed ? 'scale(2)' : undefined, transformOrigin: origin }}
       />
     </button>
@@ -120,6 +121,7 @@ export interface ReviewCardProps {
   onDraftChange: (text: string) => void
   onAction: (action: CardAction) => void
   canGoBack: boolean
+  photoSize: PhotoSize
 }
 
 export function ReviewCard({
@@ -136,6 +138,7 @@ export function ReviewCard({
   onDraftChange,
   onAction,
   canGoBack,
+  photoSize,
 }: ReviewCardProps) {
   const warnings = formatWarnings(normaliseValues(draft))
   const reviewed = isReviewed(record)
@@ -167,7 +170,7 @@ export function ReviewCard({
           </span>
         </div>
 
-        <ZoomImage imageNo={record.image_no} />
+        <ZoomImage imageNo={record.image_no} photoSize={photoSize} />
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
           {(

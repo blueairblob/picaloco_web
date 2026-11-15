@@ -11,6 +11,7 @@ import {
 } from '@/services/dataFixService'
 import { adminSupabase } from '@/lib/supabase/adminClient'
 import { getReviewImageUrl } from '@/services/images'
+import { GRID_COLUMNS, TILE_LABEL, type PhotoSize } from '@/lib/photoSize'
 
 export const GRID_SIZE = 24
 
@@ -23,9 +24,10 @@ const overlayBg = { background: 'color-mix(in srgb, var(--surface) 85%, transpar
 interface Props {
   fixId: string
   params: QueueParams
+  photoSize: PhotoSize
 }
 
-export function BulkConfirmGrid({ fixId, params }: Props) {
+export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
   const queryClient = useQueryClient()
   const [after, setAfter] = useState<string | null>(null)
   const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set())
@@ -139,7 +141,7 @@ export function BulkConfirmGrid({ fixId, params }: Props) {
           )}
         </div>
       )}
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <ul className={`grid gap-3 ${GRID_COLUMNS[photoSize]}`}>
         {records.map((r) => {
           const ticked = !unticked.has(r.image_no)
           return (
@@ -158,7 +160,7 @@ export function BulkConfirmGrid({ fixId, params }: Props) {
                   loading="lazy"
                   className="aspect-[4/3] w-full object-cover"
                 />
-                <span className="absolute inset-x-0 top-0 px-2 py-1 text-sm font-semibold text-[var(--foreground)]" style={overlayBg}>
+                <span className={`absolute inset-x-0 top-0 px-2 py-1 ${TILE_LABEL[photoSize]} font-semibold text-[var(--foreground)]`} style={overlayBg}>
                   {r.suggested_values.join('; ')}
                 </span>
                 <span className="absolute inset-x-0 bottom-0 flex justify-between px-2 py-0.5 text-xs text-[var(--muted)]" style={overlayBg}>
