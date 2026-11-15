@@ -24,3 +24,9 @@ export function companionBlockMessage(
     ? `Still loading ${titles} — try again in a moment.`
     : `Couldn't load ${titles}, which has an unsaved edit — use Retry first.`
 }
+
+// Dirty companions the reviewer didn't touch on this card visit: their edit was carried in from an
+// earlier visit, so a plain save must pause and show it first.
+export function carriedCompanions(dirtyFixIds: string[], touched: ReadonlySet<string>): string[] {
+  return dirtyFixIds.filter((id) => !touched.has(id))
+}

@@ -35,7 +35,13 @@ export function shortcutFor(
 }
 
 // Ctrl/Cmd+Enter in the other fix's box saves the whole card (confirm, which saves its edit first)
-// unless the main box has its own edit, in which case it's the usual save-edit.
-export function ctrlEnterAction(inOtherBox: boolean, mainDirty: boolean): 'saveEdit' | 'confirm' {
-  return inOtherBox && !mainDirty ? 'confirm' : 'saveEdit'
+// unless the main box has its own edit, in which case it's the usual save-edit. A main record that
+// needs a recheck is never implicitly "kept": the reviewer must choose for it.
+export function ctrlEnterAction(
+  inOtherBox: boolean,
+  mainDirty: boolean,
+  mainNeedsRecheck: boolean,
+): 'saveEdit' | 'confirm' | 'chooseMain' {
+  if (!inOtherBox || mainDirty) return 'saveEdit'
+  return mainNeedsRecheck ? 'chooseMain' : 'confirm'
 }

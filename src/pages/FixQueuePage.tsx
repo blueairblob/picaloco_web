@@ -10,7 +10,7 @@ import { useFixQueue, type QueueEntry } from '@/hooks/useFixQueue'
 import { usePhotoSize } from '@/hooks/usePhotoSize'
 import type { PhotoSize } from '@/lib/photoSize'
 import { emptyQueueMessage, parseQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
-import { companionBlockMessage, companionDecision, isCompanionDirty } from '@/lib/companionSave'
+import { carriedCompanions, companionBlockMessage, companionDecision, isCompanionDirty } from '@/lib/companionSave'
 import { canUseSuggestion, decideSave, editBaseline, isReviewed, sameValues, type SaveDecision } from '@/lib/reviewDecision'
 import { draftKey, isDraftOutdated, reviewDrafts } from '@/lib/reviewDrafts'
 import { ctrlEnterAction, isTypingTarget, shortcutFor } from '@/lib/reviewKeys'
@@ -138,12 +138,24 @@ function ReviewQueue({
     rerender()
   }
 
+  // Companion fixes the reviewer has edited (or been shown) on this card visit; reset per record.
+  const touchedRef = useRef<{ imageNo: string; ids: Set<string> }>({ imageNo: '', ids: new Set() })
+  const touched = (imageNo: string) => {
+    if (touchedRef.current.imageNo !== imageNo) touchedRef.current = { imageNo, ids: new Set() }
+    return touchedRef.current.ids
+  }
+
   const setCompanionDraft = (fixId: string, text: string) => {
     const row = companionRows?.find((r) => r.fix_id === fixId)
     if (!rec || !row) return
     const k = draftKey(fixId, rec.image_no)
-    const stored = reviewDrafts.get(k)
-    reviewDrafts.set(k, { text, baseUpdatedAt: stored ? stored.baseUpdatedAt : row.updated_at })
+    touched(rec.image_no).add(fixId)
+    if (!isCompanionDirty(row, text)) {
+      reviewDrafts.delete(k)
+    } else {
+      const stored = reviewDrafts.get(k)
+      reviewDrafts.set(k, { text, baseUpdatedAt: stored ? stored.baseUpdatedAt : row.updated_at })
+    }
     rerender()
   }
 
@@ -187,7 +199,7 @@ function ReviewQueue({
 
   // Saves each edited companion before the main save. Returns true when it's fine to carry on; on
   // any problem it shows a notice (prefixed with the companion's title) and returns false.
-  const saveCompanions = async (target: QueueEntry): Promise<boolean> => {
+  const saveCompanions = async (target: QueueEntry, saved: string[]): Promise<boolean> => {
     for (const c of companionViews) {
       const stored = reviewDrafts.get(draftKey(c.fixId, target.image_no))
       const decision = stored ? companionDecision(c.row, stored.text) : null
@@ -217,6 +229,7 @@ function ReviewQueue({
           updated_at: outcome.updated_at,
         })
         reviewDrafts.delete(k)
+        saved.push(c.title)
         continue
       }
       if (outcome.reason === 'stale') {
@@ -261,14 +274,35 @@ function ReviewQueue({
       setNotice({ tone: 'info', text: blocked })
       return
     }
+    // An edit carried in from an earlier visit is shown first; the next save action saves it.
+    const carried = carriedCompanions(
+      companionViews.filter((c) => c.dirty).map((c) => c.fixId),
+      touched(rec.image_no),
+    )
+    if (carried.length > 0) {
+      const c = companionViews.find((v) => v.fixId === carried[0])
+      if (c) {
+        const vals = normaliseValues(c.draft)
+        setNotice({
+          tone: 'info',
+          text: `This photo has an unsaved ${c.title} edit from earlier: ${vals.length > 0 ? vals.join('; ') : c.notVisibleLabel}. Press again to save it with this record, or discard it.`,
+        })
+        document.getElementById(`review-values-${c.fixId}`)?.scrollIntoView({ block: 'center' })
+      }
+      for (const id of carried) touched(rec.image_no).add(id)
+      return
+    }
     const target = rec
     const targetKey = key
     const at = index
+    const savedTitles: string[] = []
+    const failNotice = (n: CardNotice) =>
+      setNotice(savedTitles.length > 0 ? { ...n, text: `${n.text} (${savedTitles.join(', ')} was saved.)` } : n)
     savingRef.current = true
     setSaving(true)
     setNotice(null)
     try {
-      if (!(await saveCompanions(target))) return
+      if (!(await saveCompanions(target, savedTitles))) return
       const outcome = await reviewValue({
         imageNo: target.image_no,
         fixId: fix.id,
@@ -297,12 +331,12 @@ function ReviewQueue({
           if (fresh) {
             patch(target.image_no, fresh)
             rebaseDraft(targetKey, fresh.updated_at)
-            setNotice({ tone: 'info', text: 'Someone else changed this record — reloaded' })
+            failNotice({ tone: 'info', text: 'Someone else changed this record — reloaded' })
           } else {
-            setNotice({ tone: 'error', text: 'This record no longer exists — skip it.' })
+            failNotice({ tone: 'error', text: 'This record no longer exists — skip it.' })
           }
         } catch {
-          setNotice({
+          failNotice({
             tone: 'error',
             text: 'Someone else changed this record, and reloading it failed. Go Back and forward to retry.',
           })
@@ -310,11 +344,11 @@ function ReviewQueue({
         return
       }
       if (outcome.reason === 'signed-out') {
-        setNotice({ tone: 'error', text: 'Signed out — sign in again', onSignIn: signInAgain })
+        failNotice({ tone: 'error', text: 'Signed out — sign in again', onSignIn: signInAgain })
       } else if (outcome.reason === 'forbidden') {
-        setNotice({ tone: 'error', text: "This account isn't allowed to review fixes." })
+        failNotice({ tone: 'error', text: "This account isn't allowed to review fixes." })
       } else {
-        setNotice({ tone: 'error', text: `Couldn't save: ${outcome.message}. Nothing was lost — try again.` })
+        failNotice({ tone: 'error', text: `Couldn't save: ${outcome.message}. Nothing was lost — try again.` })
       }
     } finally {
       savingRef.current = false
@@ -411,12 +445,20 @@ function ReviewQueue({
     }
   }
 
+  const chooseMain = (companionFixId: string) => {
+    const title = companionFixes.find((f) => f.id === companionFixId)?.title ?? 'other fix'
+    setNotice({
+      tone: 'info',
+      text: `Choose Keep current or Use suggestion for ${fix.title} — your ${title} edit is saved with it.`,
+    })
+  }
+
   // The window listener is attached once and always calls the latest render's handler.
   const runRef = useRef(run)
-  const keyState = useRef({ mainDirty: dirty, discardCompanion: discardCompanionDraft, clearNotice: () => setNotice(null) })
+  const keyState = useRef({ mainNeedsRecheck: !!rec?.needs_recheck, chooseMain, mainDirty: dirty, discardCompanion: discardCompanionDraft, clearNotice: () => setNotice(null) })
   useLayoutEffect(() => {
     runRef.current = run
-    keyState.current = { mainDirty: dirty, discardCompanion: discardCompanionDraft, clearNotice: () => setNotice(null) }
+    keyState.current = { mainNeedsRecheck: !!rec?.needs_recheck, chooseMain, mainDirty: dirty, discardCompanion: discardCompanionDraft, clearNotice: () => setNotice(null) }
   })
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.altKey || e.isComposing || e.defaultPrevented) return
@@ -428,15 +470,19 @@ function ReviewQueue({
 
     // '' is the main box; a fix id is that fix's companion box.
     const companionBox = inEditBox && el?.dataset.reviewEdit ? el.dataset.reviewEdit : null
-    let action: CardAction | null
+    let action: CardAction | 'chooseMain' | null
     if (e.ctrlKey || e.metaKey) {
-      action = e.key === 'Enter' ? ctrlEnterAction(!!companionBox, keyState.current.mainDirty) : null
+      action = e.key === 'Enter' ? ctrlEnterAction(!!companionBox, keyState.current.mainDirty, keyState.current.mainNeedsRecheck) : null
     } else {
       action = shortcutFor(e.key, target)
     }
     if (!action) return
     e.preventDefault()
     if (savingRef.current) return
+    if (action === 'chooseMain') {
+      keyState.current.chooseMain(companionBox ?? '')
+      return
+    }
     if (action === 'cancelEdit' && companionBox) {
       keyState.current.discardCompanion(companionBox)
       keyState.current.clearNotice()
@@ -545,6 +591,7 @@ function ReviewQueue({
         companionTitles={companionFixes.map((f) => f.title)}
         onCompanionRetry={companionData.refetch}
         onCompanionDraftChange={setCompanionDraft}
+        onCompanionDiscard={discardCompanionDraft}
       />
     </>
   )

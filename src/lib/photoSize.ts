@@ -26,6 +26,6 @@ export const TILE_LABEL: Record<PhotoSize, string> = {
 
 export const REVIEW_PHOTO_HEIGHT: Record<PhotoSize, string> = {
   normal: 'h-[min(60vh,32rem)]',
-  large: 'h-[min(75vh,44rem)]',
-  xlarge: 'h-[min(85vh,56rem)]',
+  large: 'h-auto max-h-[min(75vh,44rem)]',
+  xlarge: 'h-auto max-h-[min(85vh,56rem)]',
 }

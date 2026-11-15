@@ -121,10 +121,12 @@ function CompanionBlock({
   c,
   saving,
   onChange,
+  onDiscard,
 }: {
   c: CompanionView
   saving: boolean
   onChange: (fixId: string, text: string) => void
+  onDiscard: (fixId: string) => void
 }) {
   const { row } = c
   const reviewed = isReviewed(row)
@@ -137,8 +139,15 @@ function CompanionBlock({
         <label htmlFor={id} className="text-sm font-medium text-[var(--foreground)]">
           Also on this photo: {c.title} <span className="font-normal text-[var(--muted)]">(one per line)</span>
         </label>
-        <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]">
-          {STATUS_LABEL[row.status] ?? row.status}
+        <span className="flex flex-wrap gap-2">
+          {row.needs_recheck && (
+            <span className="rounded-full border border-[var(--warning)] px-2 py-0.5 text-xs text-[var(--warning)]">
+              Needs recheck
+            </span>
+          )}
+          <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]">
+            {STATUS_LABEL[row.status] ?? row.status}
+          </span>
         </span>
       </div>
       <textarea
@@ -164,6 +173,12 @@ function CompanionBlock({
           ({confidence})
         </p>
       )}
+      {reviewed && canUseSuggestion(row) && (
+        <p className="text-sm text-[var(--warning)]">
+          New suggestion: <span className="font-medium text-[var(--foreground)]">{row.suggested_values.join('; ')}</span> (
+          {confidence})
+        </p>
+      )}
       {c.draftOutdated && (
         <p
           role="alert"
@@ -173,11 +188,23 @@ function CompanionBlock({
         </p>
       )}
       {c.dirty && (
-        <p className="text-sm text-[var(--warning)]">
-          {empty
-            ? `Empty — will be saved as ‘${c.notVisibleLabel}’.`
-            : 'Edited — saved with this record when you confirm or save.'}
-        </p>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--warning)]">
+          <p>
+            {empty
+              ? `Empty — will be saved as ‘${c.notVisibleLabel}’. `
+              : 'Edited — saved with this record when you confirm or save. '}
+            Esc in the box or Discard throws it away; Ctrl+Enter saves it with this record.
+          </p>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onDiscard(c.fixId)}
+            disabled={saving}
+            className={btn}
+          >
+            Discard
+          </button>
+        </div>
       )}
     </div>
   )
@@ -203,6 +230,7 @@ export interface ReviewCardProps {
   companionTitles: string[]
   onCompanionRetry: () => void
   onCompanionDraftChange: (fixId: string, text: string) => void
+  onCompanionDiscard: (fixId: string) => void
 }
 
 export function ReviewCard({
@@ -225,6 +253,7 @@ export function ReviewCard({
   companionTitles,
   onCompanionRetry,
   onCompanionDraftChange,
+  onCompanionDiscard,
 }: ReviewCardProps) {
   const warnings = formatWarnings(normaliseValues(draft))
   const reviewed = isReviewed(record)
@@ -353,7 +382,13 @@ export function ReviewCard({
         )}
         {companionsState === 'ready' &&
           companions.map((c) => (
-            <CompanionBlock key={c.fixId} c={c} saving={saving} onChange={onCompanionDraftChange} />
+            <CompanionBlock
+              key={c.fixId}
+              c={c}
+              saving={saving}
+              onChange={onCompanionDraftChange}
+              onDiscard={onCompanionDiscard}
+            />
           ))}
 
         {notice && (
@@ -372,6 +407,18 @@ export function ReviewCard({
               </button>
             )}
           </div>
+        )}
+
+        {companions.some((c) => c.dirty) && (
+          <p className="text-sm text-[var(--warning)]">
+            {companions
+              .filter((c) => c.dirty)
+              .map((c) => {
+                const vals = normaliseValues(c.draft)
+                return `Also saves: ${c.title} → ${vals.length > 0 ? vals.join('; ') : c.notVisibleLabel}`
+              })
+              .join(' · ')}
+          </p>
         )}
 
         <div className="flex flex-wrap gap-2">

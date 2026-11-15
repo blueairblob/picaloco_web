@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { companionBlockMessage, companionDecision, isCompanionDirty } from './companionSave'
+import { carriedCompanions, companionBlockMessage, companionDecision, isCompanionDirty } from './companionSave'
 import type { CompanionValue } from '@/services/dataFixService'
 
 const row = (over: Partial<CompanionValue> = {}): CompanionValue => ({
@@ -46,5 +46,13 @@ describe('companionBlockMessage', () => {
     expect(companionBlockMessage('error', ['Loco name'])).toBe(
       "Couldn't load Loco name, which has an unsaved edit — use Retry first.",
     )
+  })
+})
+
+describe('carriedCompanions', () => {
+  it('returns dirty companions not edited this visit', () => {
+    expect(carriedCompanions(['a', 'b'], new Set(['b']))).toEqual(['a'])
+    expect(carriedCompanions(['a'], new Set(['a']))).toEqual([])
+    expect(carriedCompanions([], new Set())).toEqual([])
   })
 })

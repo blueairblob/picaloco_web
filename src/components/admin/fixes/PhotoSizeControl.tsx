@@ -7,8 +7,10 @@ const pressed = 'border-[var(--accent)] bg-[var(--accent)] font-medium text-[var
 
 export function PhotoSizeControl({ value, onChange }: { value: PhotoSize; onChange: (s: PhotoSize) => void }) {
   return (
-    <div role="group" aria-label="Photo size" className="flex flex-wrap items-center gap-2">
-      <span className="text-base text-[var(--foreground)]">Photo size</span>
+    <div role="group" aria-labelledby="photo-size-label" className="flex flex-wrap items-center gap-2">
+      <span id="photo-size-label" className="text-base text-[var(--foreground)]">
+        Photo size
+      </span>
       {PHOTO_SIZES.map((s) => (
         <button
           key={s.id}
