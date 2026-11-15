@@ -10,6 +10,8 @@ const keyFor = (imageNo: string | undefined, fixIds: string[]) =>
 export function useCompanions(imageNo: string | undefined, fixIds: string[], upcoming: string[]) {
   const client = useQueryClient()
   const idsKey = fixIds.join(',')
+  // Leaving the queue drops the cache, so coming back always loads fresh rows.
+  useEffect(() => () => void client.removeQueries({ queryKey: ['data-fix-companions'] }), [client])
   const query = useQuery({
     queryKey: keyFor(imageNo, fixIds),
     queryFn: () => getCompanionValues(imageNo as string, fixIds),

@@ -6,11 +6,11 @@ import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
 import { ReviewCard, type CardAction, type CardNotice, type CompanionView } from '@/components/admin/fixes/ReviewCard'
 import { PhotoSizeControl } from '@/components/admin/fixes/PhotoSizeControl'
 import { useCompanions } from '@/hooks/useCompanions'
-import { useFixQueue } from '@/hooks/useFixQueue'
+import { useFixQueue, type QueueEntry } from '@/hooks/useFixQueue'
 import { usePhotoSize } from '@/hooks/usePhotoSize'
 import type { PhotoSize } from '@/lib/photoSize'
 import { emptyQueueMessage, parseQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
-import { companionDecision, isCompanionDirty } from '@/lib/companionSave'
+import { companionBlockMessage, companionDecision, isCompanionDirty } from '@/lib/companionSave'
 import { canUseSuggestion, decideSave, editBaseline, isReviewed, sameValues, type SaveDecision } from '@/lib/reviewDecision'
 import { draftKey, isDraftOutdated, reviewDrafts } from '@/lib/reviewDrafts'
 import { ctrlEnterAction, isTypingTarget, shortcutFor } from '@/lib/reviewKeys'
@@ -84,8 +84,11 @@ function ReviewQueue({
   const draftOutdated = !!rec && !!storedDraft && dirty && isDraftOutdated(storedDraft, rec.updated_at)
 
   const companionIds = companionFixes.map((f) => f.id)
-  const upcomingNos = records.slice(index + 1, index + 1 + PRELOAD_IMAGES).map((r) => r.image_no)
-  const companionData = useCompanions(rec?.image_no, companionIds, upcomingNos)
+  const upcoming = records
+    .slice(index + 1, index + 1 + PRELOAD_IMAGES)
+    .map((r) => r.image_no)
+    .join('\n')
+  const companionData = useCompanions(rec?.image_no, companionIds, upcoming ? upcoming.split('\n') : [])
   const companionRows = companionData.rows
   const companionsState: 'loading' | 'error' | 'ready' =
     companionIds.length === 0 || companionRows ? 'ready' : companionData.isError ? 'error' : 'loading'
@@ -116,10 +119,6 @@ function ReviewQueue({
     }
   }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage, records.length, index])
 
-  const upcoming = records
-    .slice(index + 1, index + 1 + PRELOAD_IMAGES)
-    .map((r) => r.image_no)
-    .join('\n')
   useEffect(() => {
     for (const imageNo of upcoming ? upcoming.split('\n') : []) {
       new Image().src = getReviewImageUrl(imageNo)
@@ -188,7 +187,7 @@ function ReviewQueue({
 
   // Saves each edited companion before the main save. Returns true when it's fine to carry on; on
   // any problem it shows a notice (prefixed with the companion's title) and returns false.
-  const saveCompanions = async (target: typeof rec & object): Promise<boolean> => {
+  const saveCompanions = async (target: QueueEntry): Promise<boolean> => {
     for (const c of companionViews) {
       const stored = reviewDrafts.get(draftKey(c.fixId, target.image_no))
       const decision = stored ? companionDecision(c.row, stored.text) : null
@@ -253,6 +252,15 @@ function ReviewQueue({
 
   const save = async ({ status, values }: SaveDecision) => {
     if (!rec || savingRef.current) return
+    // A stored companion edit must never be skipped just because its row isn't loaded.
+    const blocked = companionBlockMessage(
+      companionsState,
+      companionFixes.filter((f) => !!reviewDrafts.get(draftKey(f.id, rec.image_no))).map((f) => f.title),
+    )
+    if (blocked) {
+      setNotice({ tone: 'info', text: blocked })
+      return
+    }
     const target = rec
     const targetKey = key
     const at = index
@@ -330,7 +338,17 @@ function ReviewQueue({
         if (dirty) {
           editedNotice()
         } else if (!isReviewed(rec) && baseline.length === 0) {
-          setNotice({ tone: 'info', text: 'Nothing to confirm — press E to type a value, or use N / X.' })
+          setNotice({
+            tone: 'info',
+            text:
+              'Nothing to confirm — press E to type a value, or use N / X.' +
+              (companionViews.some((c) => c.dirty)
+                ? ` Your ${companionViews
+                    .filter((c) => c.dirty)
+                    .map((c) => c.title)
+                    .join(', ')} edit is kept — it is saved with N, X, or a typed value.`
+                : ''),
+          })
         } else {
           // An open record: confirm its values (else the suggestion). A reviewed one: keep it as it is.
           void save(decideSave(rec, 'confirm'))
@@ -395,10 +413,10 @@ function ReviewQueue({
 
   // The window listener is attached once and always calls the latest render's handler.
   const runRef = useRef(run)
-  const keyState = useRef({ mainDirty: dirty, discardCompanion: discardCompanionDraft })
+  const keyState = useRef({ mainDirty: dirty, discardCompanion: discardCompanionDraft, clearNotice: () => setNotice(null) })
   useLayoutEffect(() => {
     runRef.current = run
-    keyState.current = { mainDirty: dirty, discardCompanion: discardCompanionDraft }
+    keyState.current = { mainDirty: dirty, discardCompanion: discardCompanionDraft, clearNotice: () => setNotice(null) }
   })
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.altKey || e.isComposing || e.defaultPrevented) return
@@ -418,12 +436,13 @@ function ReviewQueue({
     }
     if (!action) return
     e.preventDefault()
+    if (savingRef.current) return
     if (action === 'cancelEdit' && companionBox) {
       keyState.current.discardCompanion(companionBox)
+      keyState.current.clearNotice()
       el?.blur()
       return
     }
-    if (savingRef.current) return
     if (e.repeat && SAVE_ACTIONS.includes(action)) return // a held key must not review a run of records
     runRef.current(action)
   }, [])

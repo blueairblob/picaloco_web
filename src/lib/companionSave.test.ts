@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { companionDecision, isCompanionDirty } from './companionSave'
+import { companionBlockMessage, companionDecision, isCompanionDirty } from './companionSave'
 import type { CompanionValue } from '@/services/dataFixService'
 
 const row = (over: Partial<CompanionValue> = {}): CompanionValue => ({
@@ -35,5 +35,16 @@ describe('companion save', () => {
     const r = row({ status: 'corrected', values: ['Doll'], suggested_values: [] })
     expect(companionDecision(r, 'Doll')).toBeNull()
     expect(companionDecision(r, 'Dolly')).toEqual({ status: 'corrected', values: ['Dolly'] })
+  })
+})
+
+describe('companionBlockMessage', () => {
+  it('only blocks while not ready and a draft exists', () => {
+    expect(companionBlockMessage('ready', ['Loco name'])).toBeNull()
+    expect(companionBlockMessage('loading', [])).toBeNull()
+    expect(companionBlockMessage('loading', ['Loco name'])).toBe('Still loading Loco name — try again in a moment.')
+    expect(companionBlockMessage('error', ['Loco name'])).toBe(
+      "Couldn't load Loco name, which has an unsaved edit — use Retry first.",
+    )
   })
 })
