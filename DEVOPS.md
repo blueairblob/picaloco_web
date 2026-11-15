@@ -539,7 +539,7 @@ raise `42501` for non-admins):
 | `is_admin()` | Is the signed-in user in `rat.admin_user` |
 | `data_fix_progress()` | Counts by fix, status, confidence and `needs_recheck` |
 | `data_fix_queue(p_fix_id, p_confidence, p_status, p_include_recheck, p_collection, p_text, p_after, p_limit)` | One page of the review queue, keyset on `image_no` |
-| `review_fix_value(p_image_no, p_fix_id, p_values, p_status, p_expected_updated_at)` | Save one review. `40001` means someone else changed it first (optimistic lock on `updated_at`, so the exact string is passed through) |
+| `review_fix_value(p_image_no, p_fix_id, p_values, p_status, p_expected_updated_at)` | Save one review. `PT409` (HTTP 409) means someone else changed it first (optimistic lock on `updated_at`, so the exact string is passed through) |
 | `confirm_fix_values(p_fix_id, p_items)` | Bulk confirm `{image_no, updated_at}` items; only rows still `extracted` and unchanged are confirmed |
 | `data_fix_orphans()` | Reviewed rows whose photo is no longer in `rat.catalog` |
 

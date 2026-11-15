@@ -145,7 +145,9 @@ export function mapReviewError(err: {
   message?: string
   status?: number
 }): 'stale' | 'forbidden' | 'signed-out' | 'error' {
-  if (err.code === '40001') return 'stale'
+  // PT409 (HTTP 409) from review_fix_value's optimistic lock. Not status 409 alone: PostgREST also
+  // answers 409 for unique and foreign key violations.
+  if (err.code === 'PT409') return 'stale'
   if (err.status === 401 || err.code === 'PGRST301' || /JWT expired/i.test(err.message ?? '')) return 'signed-out'
   if (err.code === '42501') return 'forbidden'
   return 'error'

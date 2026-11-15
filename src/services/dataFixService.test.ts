@@ -45,7 +45,8 @@ describe('summariseProgress', () => {
 
 describe('mapReviewError', () => {
   it('classifies server errors', () => {
-    expect(mapReviewError({ code: '40001' })).toBe('stale')
+    expect(mapReviewError({ code: 'PT409' })).toBe('stale')
+    expect(mapReviewError({ code: '23505', status: 409 })).toBe('error')
     expect(mapReviewError({ code: '42501' })).toBe('forbidden')
     expect(mapReviewError({ status: 401 })).toBe('signed-out')
     expect(mapReviewError({ code: 'PGRST301' })).toBe('signed-out')
@@ -141,7 +142,7 @@ describe('reviewValue', () => {
   })
 
   it('reports stale', async () => {
-    rpc.mockResolvedValue({ data: null, error: { code: '40001', message: 'changed' }, status: 400 })
+    rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'changed' }, status: 409 })
     expect(await reviewValue(input)).toMatchObject({ ok: false, reason: 'stale' })
   })
 
