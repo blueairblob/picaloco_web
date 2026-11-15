@@ -32,16 +32,14 @@ describe('shortcutFor', () => {
 })
 
 describe('ctrlEnterAction', () => {
-  it('confirms only from the other box when the main box is clean', () => {
+  it('is Save & next', () => {
+    expect(ctrlEnterAction(false, false, false)).toBe('confirm')
     expect(ctrlEnterAction(true, false, false)).toBe('confirm')
-    expect(ctrlEnterAction(true, true, false)).toBe('saveEdit')
-    expect(ctrlEnterAction(false, false, false)).toBe('saveEdit')
-    expect(ctrlEnterAction(false, true, false)).toBe('saveEdit')
+    expect(ctrlEnterAction(false, false, true)).toBe('confirm')
+    expect(ctrlEnterAction(true, true, true)).toBe('confirm')
   })
 
-  it('makes the reviewer choose when the main record needs a recheck', () => {
+  it('makes the reviewer look at an untouched main record that needs a recheck', () => {
     expect(ctrlEnterAction(true, false, true)).toBe('chooseMain')
-    expect(ctrlEnterAction(true, true, true)).toBe('saveEdit')
-    expect(ctrlEnterAction(false, false, true)).toBe('saveEdit')
   })
 })

@@ -17,9 +17,9 @@ describe('photo size tables', () => {
   it('labels', () => {
     expect(PHOTO_SIZES.map((s) => s.label)).toEqual(['Normal', 'Large', 'Extra large'])
   })
-  it('normal is exactly the current layout', () => {
+  it('normal grid is the original layout; normal photo fits the window', () => {
     expect(GRID_COLUMNS.normal).toBe('grid-cols-2 sm:grid-cols-3 lg:grid-cols-6')
-    expect(REVIEW_PHOTO_HEIGHT.normal).toBe('h-[min(60vh,32rem)]')
+    expect(REVIEW_PHOTO_HEIGHT.normal).toBe('h-[clamp(14rem,calc(100dvh-44rem),48rem)]')
   })
   it('every size has an entry in every table', () => {
     for (const { id } of PHOTO_SIZES) {

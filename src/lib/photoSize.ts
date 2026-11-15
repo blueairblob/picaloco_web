@@ -24,8 +24,11 @@ export const TILE_LABEL: Record<PhotoSize, string> = {
   xlarge: 'text-2xl',
 }
 
+// The review photo's height. Normal fits the whole card in the window with no scrolling: the rest of
+// the page takes about 44rem (header, filters, Back/Next, description, boxes). Large and Extra large
+// give the photo more room, so the boxes below it may need a short scroll.
 export const REVIEW_PHOTO_HEIGHT: Record<PhotoSize, string> = {
-  normal: 'h-[min(60vh,32rem)]',
-  large: 'h-auto max-h-[min(75vh,44rem)]',
-  xlarge: 'h-auto max-h-[min(85vh,56rem)]',
+  normal: 'h-[clamp(14rem,calc(100dvh-44rem),48rem)]',
+  large: 'h-[clamp(20rem,calc(100dvh-28rem),64rem)]',
+  xlarge: 'h-[clamp(26rem,calc(100dvh-14rem),80rem)]',
 }

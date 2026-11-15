@@ -33,7 +33,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-4xl items-center justify-end gap-3 px-6 pt-4 text-sm text-[var(--muted)]">
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-end gap-3 px-6 pt-2 text-sm text-[var(--muted)]">
         <span>{email}</span>
         <button type="button" onClick={signOut} className={buttonClass}>
           Sign out

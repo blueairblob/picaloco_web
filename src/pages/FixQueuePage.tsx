@@ -5,13 +5,27 @@ import { BulkConfirmGrid } from '@/components/admin/fixes/BulkConfirmGrid'
 import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
 import { ReviewCard, type CardAction, type CardNotice, type CompanionView } from '@/components/admin/fixes/ReviewCard'
 import { PhotoSizeControl } from '@/components/admin/fixes/PhotoSizeControl'
+import { ReviewHelp } from '@/components/admin/fixes/ReviewHelp'
 import { useCompanions } from '@/hooks/useCompanions'
 import { useFixQueue, type QueueEntry } from '@/hooks/useFixQueue'
 import { usePhotoSize } from '@/hooks/usePhotoSize'
 import type { PhotoSize } from '@/lib/photoSize'
 import { emptyQueueMessage, parseQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
-import { carriedCompanions, companionBlockMessage, companionDecision, isCompanionDirty } from '@/lib/companionSave'
-import { canUseSuggestion, decideSave, editBaseline, isReviewed, sameValues, type SaveDecision } from '@/lib/reviewDecision'
+import {
+  NO_TOGGLES,
+  clearMarks,
+  companionTarget,
+  fieldMark,
+  mainDecision,
+  mainTouched,
+  noLocoOn,
+  toggleNoLoco,
+  toggleNotVisible,
+  type CardToggles,
+  type FieldState,
+} from '@/lib/cardAnswer'
+import { carriedCompanions, companionBlockMessage, isCompanionDirty } from '@/lib/companionSave'
+import { canUseSuggestion, editBaseline, sameValues, type SaveDecision } from '@/lib/reviewDecision'
 import { draftKey, isDraftOutdated, reviewDrafts } from '@/lib/reviewDrafts'
 import { ctrlEnterAction, isTypingTarget, shortcutFor } from '@/lib/reviewKeys'
 import { adminSupabase } from '@/lib/supabase/adminClient'
@@ -52,7 +66,8 @@ function ownsEnter(el: HTMLElement | null): boolean {
   return !!el && ['BUTTON', 'A', 'SUMMARY'].includes(el.tagName)
 }
 
-const SAVE_ACTIONS: CardAction[] = ['confirm', 'useSuggestion', 'notVisible', 'noLoco', 'saveEdit']
+// A held key must not save a run of records, or flicker a toggle on and off.
+const NO_REPEAT: CardAction[] = ['confirm', 'useSuggestion', 'notVisible', 'noLoco']
 
 function ReviewQueue({
   fix,
@@ -83,6 +98,17 @@ function ReviewQueue({
   // Typed before this record last changed (elsewhere, or before a reload): never dropped, but flagged.
   const draftOutdated = !!rec && !!storedDraft && dirty && isDraftOutdated(storedDraft, rec.updated_at)
 
+  // No loco / Not visible selections on this card visit. Nothing is saved until Save & next, and
+  // moving to another photo forgets them (the photo then shows its saved answer again).
+  const [toggleState, setToggleState] = useState<{ imageNo: string; t: CardToggles }>({ imageNo: '', t: NO_TOGGLES })
+  const toggles = rec && toggleState.imageNo === rec.image_no ? toggleState.t : NO_TOGGLES
+  const setToggles = (t: CardToggles) => {
+    if (rec) setToggleState({ imageNo: rec.image_no, t })
+  }
+  const mainField: FieldState = { fixId: fix.id, status: rec?.status ?? 'extracted', dirty }
+  const mainMark = fieldMark(mainField, toggles)
+  const noLoco = noLocoOn(mainField, toggles)
+
   const companionIds = companionFixes.map((f) => f.id)
   const upcoming = records
     .slice(index + 1, index + 1 + PRELOAD_IMAGES)
@@ -100,6 +126,7 @@ function ReviewQueue({
       const stored = reviewDrafts.get(draftKey(f.id, rec.image_no))
       const text = stored?.text ?? editBaseline(row).join('\n')
       const isDirty = !!stored && isCompanionDirty(row, stored.text)
+      const mark = fieldMark({ fixId: f.id, status: row.status, dirty: isDirty }, toggles)
       companionViews.push({
         fixId: f.id,
         title: f.title,
@@ -108,6 +135,8 @@ function ReviewQueue({
         draft: text,
         dirty: isDirty,
         draftOutdated: !!stored && isDirty && isDraftOutdated(stored, row.updated_at),
+        mark,
+        target: companionTarget(row, stored?.text, isDirty, mark),
       })
     }
   }
@@ -127,6 +156,7 @@ function ReviewQueue({
 
   const setDraft = (text: string) => {
     if (!rec) return
+    setToggles(clearMarks(mainField, toggles))
     // Keep the original base while typing on: only an explicit save or the stale reload rebases it.
     reviewDrafts.set(key, { text, baseUpdatedAt: storedDraft ? storedDraft.baseUpdatedAt : rec.updated_at })
     rerender()
@@ -150,6 +180,7 @@ function ReviewQueue({
     if (!rec || !row) return
     const k = draftKey(fixId, rec.image_no)
     touched(rec.image_no).add(fixId)
+    setToggles(clearMarks({ fixId, status: row.status, dirty: true }, toggles))
     if (!isCompanionDirty(row, text)) {
       reviewDrafts.delete(k)
     } else {
@@ -157,6 +188,12 @@ function ReviewQueue({
       reviewDrafts.set(k, { text, baseUpdatedAt: stored ? stored.baseUpdatedAt : row.updated_at })
     }
     rerender()
+  }
+
+  const toggleCompanionNotVisible = (fixId: string) => {
+    const c = companionViews.find((v) => v.fixId === fixId)
+    if (!c) return
+    setToggles(toggleNotVisible({ fixId, status: c.row.status, dirty: c.dirty }, toggles))
   }
 
   const discardCompanionDraft = (fixId: string) => {
@@ -201,11 +238,11 @@ function ReviewQueue({
   // any problem it shows a notice (prefixed with the companion's title) and returns false.
   const saveCompanions = async (target: QueueEntry, saved: string[]): Promise<boolean> => {
     for (const c of companionViews) {
-      const stored = reviewDrafts.get(draftKey(c.fixId, target.image_no))
-      const decision = stored ? companionDecision(c.row, stored.text) : null
-      if (!stored || !decision) continue
+      const decision = c.target
+      if (!decision) continue
       const k = draftKey(c.fixId, target.image_no)
-      if (isDraftOutdated(stored, c.row.updated_at)) {
+      const stored = reviewDrafts.get(k)
+      if (stored && c.dirty && !c.mark && isDraftOutdated(stored, c.row.updated_at)) {
         rebaseDraft(k, c.row.updated_at)
         setNotice({
           tone: 'info',
@@ -266,9 +303,12 @@ function ReviewQueue({
   const save = async ({ status, values }: SaveDecision) => {
     if (!rec || savingRef.current) return
     // A stored companion edit must never be skipped just because its row isn't loaded.
+    // Nor a selected No loco, which also answers the fields that haven't loaded.
     const blocked = companionBlockMessage(
       companionsState,
-      companionFixes.filter((f) => !!reviewDrafts.get(draftKey(f.id, rec.image_no))).map((f) => f.title),
+      companionFixes
+        .filter((f) => toggles.noLoco === true || !!reviewDrafts.get(draftKey(f.id, rec.image_no)))
+        .map((f) => f.title),
     )
     if (blocked) {
       setNotice({ tone: 'info', text: blocked })
@@ -290,7 +330,7 @@ function ReviewQueue({
         const one = shown.length === 1
         setNotice({
           tone: 'info',
-          text: `This photo has ${one ? 'an unsaved edit' : 'unsaved edits'} from earlier (${parts.join(' · ')}). Press again to save ${one ? 'it' : 'them'} with this record, or discard ${one ? 'it' : 'them'}.`,
+          text: `This photo has ${one ? 'an unsaved edit' : 'unsaved edits'} from earlier (${parts.join(' · ')}). Press Save & next again to save ${one ? 'it' : 'them'}, or Discard ${one ? 'it' : 'them'}.`,
         })
         document.getElementById(`review-values-${shown[0].fixId}`)?.scrollIntoView({ block: 'center' })
       }
@@ -361,67 +401,42 @@ function ReviewQueue({
     }
   }
 
-  const editedNotice = () =>
-    setNotice({
-      tone: 'info',
-      text: 'You edited the values — Ctrl+Enter saves the edit; Esc in the box or Discard throws it away.',
-    })
-
   const run = (action: CardAction) => {
     if (!rec) {
       if (action === 'back') goTo(index - 1)
       return
     }
     switch (action) {
-      case 'confirm':
-        if (dirty) {
-          editedNotice()
-        } else if (!isReviewed(rec) && baseline.length === 0) {
+      case 'confirm': {
+        // Save & next: everything on the card, as shown.
+        const decision = mainDecision(rec, draft, dirty, mainMark)
+        if (decision === 'empty') {
+          const kept = companionViews.filter((c) => c.target).map((c) => c.title)
           setNotice({
             tone: 'info',
             text:
-              'Nothing to confirm — press E to type a value, or use N / X.' +
-              (companionViews.some((c) => c.dirty)
-                ? ` Your ${companionViews
-                    .filter((c) => c.dirty)
-                    .map((c) => c.title)
-                    .join(', ')} edit is kept — it is saved with N, X, or a typed value.`
-                : ''),
-          })
-        } else {
-          // An open record: confirm its values (else the suggestion). A reviewed one: keep it as it is.
-          void save(decideSave(rec, 'confirm'))
-        }
-        return
-      case 'useSuggestion':
-        if (!canUseSuggestion(rec)) return
-        if (dirty) {
-          editedNotice()
-          return
-        }
-        void save(decideSave(rec, 'useSuggestion'))
-        return
-      case 'saveEdit': {
-        const values = normaliseValues(draft)
-        if (values.length === 0) {
-          setNotice({
-            tone: 'info',
-            text: `The box is empty — use N (${notVisibleLabel(fix.id)}) or X (No loco in photo).`,
+              `Nothing to save for ${fix.title} — type it in the box, or choose ${notVisibleLabel(fix.id)} or No loco in photo.` +
+              (kept.length > 0 ? ` Your ${kept.join(', ')} answer is kept until then.` : ''),
           })
           return
         }
-        if (draftOutdated) {
+        if (dirty && !mainMark && draftOutdated) {
           // Make the reviewer look first: this press acknowledges, the next one saves.
           rebaseDraft(key, rec.updated_at)
           setNotice({
             tone: 'info',
-            text: 'This record changed after you typed your edit. Check it against the photo, then press Ctrl+Enter again to save.',
+            text: 'This record changed after you typed your edit. Check it against the photo, then press Save & next again.',
           })
           return
         }
-        void save(decideSave(rec, 'edit', values))
+        void save(decision)
         return
       }
+      case 'useSuggestion':
+        // Puts the new suggestion in the box; Save & next saves it.
+        if (!canUseSuggestion(rec)) return
+        setDraft(rec.suggested_values.join('\n'))
+        return
       case 'edit': {
         const el = textareaRef.current
         if (el) {
@@ -436,10 +451,12 @@ function ReviewQueue({
         textareaRef.current?.blur()
         return
       case 'notVisible':
-        void save({ status: 'none_visible', values: [] })
+        setToggles(toggleNotVisible(mainField, toggles))
+        setNotice(null)
         return
       case 'noLoco':
-        void save({ status: 'no_loco', values: [] })
+        setToggles(toggleNoLoco(mainField, toggles))
+        setNotice(null)
         return
       case 'skip':
         goTo(index + 1)
@@ -454,19 +471,27 @@ function ReviewQueue({
     const title = companionFixes.find((f) => f.id === companionFixId)?.title ?? 'other fix'
     setNotice({
       tone: 'info',
-      text: `Choose Keep current or Use suggestion for ${fix.title} — your ${title} edit is saved with it.`,
+      text: `${fix.title} needs a recheck — look at it first. Press Save & next to keep it as it is (your ${title} answer is saved with it), or change it.`,
     })
   }
 
   // The window listener is attached once and always calls the latest render's handler.
   const runRef = useRef(run)
-  const keyState = useRef({ mainNeedsRecheck: !!rec?.needs_recheck, chooseMain, mainDirty: dirty, discardCompanion: discardCompanionDraft, clearNotice: () => setNotice(null) })
+  const currentKeyState = () => ({
+    mainNeedsRecheck: !!rec?.needs_recheck,
+    chooseMain,
+    mainTouched: mainTouched(mainField, toggles),
+    discardCompanion: discardCompanionDraft,
+    clearNotice: () => setNotice(null),
+  })
+  const keyState = useRef(currentKeyState())
   useLayoutEffect(() => {
     runRef.current = run
-    keyState.current = { mainNeedsRecheck: !!rec?.needs_recheck, chooseMain, mainDirty: dirty, discardCompanion: discardCompanionDraft, clearNotice: () => setNotice(null) }
+    keyState.current = currentKeyState()
   })
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.altKey || e.isComposing || e.defaultPrevented) return
+    if (document.querySelector('dialog[open]')) return // Help is open: its keys are its own
     const el = e.target instanceof HTMLElement ? e.target : null
     const inEditBox = !!el && el.dataset.reviewEdit !== undefined
     const target = keyTarget(el)
@@ -477,7 +502,10 @@ function ReviewQueue({
     const companionBox = inEditBox && el?.dataset.reviewEdit ? el.dataset.reviewEdit : null
     let action: CardAction | 'chooseMain' | null
     if (e.ctrlKey || e.metaKey) {
-      action = e.key === 'Enter' ? ctrlEnterAction(!!companionBox, keyState.current.mainDirty, keyState.current.mainNeedsRecheck) : null
+      action =
+        e.key === 'Enter' && inEditBox
+          ? ctrlEnterAction(!!companionBox, keyState.current.mainTouched, keyState.current.mainNeedsRecheck)
+          : null
     } else {
       action = shortcutFor(e.key, target)
     }
@@ -494,7 +522,7 @@ function ReviewQueue({
       el?.blur()
       return
     }
-    if (e.repeat && SAVE_ACTIONS.includes(action)) return // a held key must not review a run of records
+    if (e.repeat && NO_REPEAT.includes(action)) return
     runRef.current(action)
   }, [])
 
@@ -580,23 +608,30 @@ function ReviewQueue({
         photoSize={photoSize}
         record={rec}
         position={`Record ${index + 1} of ${total}`}
-        instructions={fix.instructions ?? ''}
         notVisibleLabel={notVisibleLabel(fix.id)}
         draft={draft}
         dirty={dirty}
         draftOutdated={draftOutdated}
+        mark={mainMark}
+        noLoco={noLoco}
+        mainTarget={(() => {
+          const d = mainDecision(rec, draft, dirty, mainMark)
+          return d === 'empty' ? null : d
+        })()}
         saving={saving}
         notice={notice}
         textareaRef={textareaRef}
         onDraftChange={setDraft}
         onAction={run}
         canGoBack={index > 0}
+        fieldTitle={fix.title}
         companions={companionViews}
         companionsState={companionsState}
         companionTitles={companionFixes.map((f) => f.title)}
         onCompanionRetry={companionData.refetch}
         onCompanionDraftChange={setCompanionDraft}
         onCompanionDiscard={discardCompanionDraft}
+        onCompanionNotVisible={toggleCompanionNotVisible}
       />
     </>
   )
@@ -621,19 +656,17 @@ export function FixQueuePage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[100rem] flex-1 flex-col gap-6 px-4 py-8 sm:px-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-          {fix?.title ?? 'Data fix review'}
-        </h1>
-        <Link to="/admin/fixes" className="mt-1 inline-block text-sm text-[var(--accent)]">
-          ← Data fixes
-        </Link>
-      </div>
-
-      <QueueFilters key={`${params.collection ?? ''}\u0000${params.text ?? ''}`} params={params} onChange={changeParams} />
-
-      {fix && (
+    <div className="mx-auto flex w-full max-w-[100rem] flex-1 flex-col gap-3 px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex flex-wrap items-baseline gap-x-4">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">
+            {fix?.title ?? 'Data fix review'}
+          </h1>
+          <Link to="/admin/fixes" className="text-sm text-[var(--accent)]">
+            ← Data fixes
+          </Link>
+        </div>
+        {fix && (
         <div className="flex flex-wrap items-center gap-4">
           {highOnly && (
             <button
@@ -646,8 +679,12 @@ export function FixQueuePage() {
             </button>
           )}
           <PhotoSizeControl value={photoSize} onChange={setPhotoSize} />
+          <ReviewHelp title={fix.title} instructions={fix.instructions ?? ''} />
         </div>
-      )}
+        )}
+      </div>
+
+      <QueueFilters key={`${params.collection ?? ''}\u0000${params.text ?? ''}`} params={params} onChange={changeParams} />
 
       {fixes.isError && <div className={box}>Something went wrong talking to the archive. Please try again.</div>}
       {fixes.isPending && <div className={box}>Loading…</div>}

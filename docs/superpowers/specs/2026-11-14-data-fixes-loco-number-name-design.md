@@ -249,7 +249,7 @@ work batch.
 | Edit | `E` | Change the value(s). Status becomes corrected. |
 | Not visible | `N` | There's a loco, but no readable number or name. |
 | No loco | `X` | There's no loco in the photo. |
-| Skip | `S` / `→` | Move on without saving anything. |
+| Next (skip) | `S` / `→` | Move on without saving anything. (See §13 for the current keys and layout.) |
 | Back | `←` | Return to the previous record. |
 
 - After an action, the next record loads at once. Prefetch the next few records and their photos.
@@ -373,3 +373,66 @@ FileMaker export's own originals (`exports/images/jpg` and `webp`) are only abou
 (median; 90% at or below 389px). Serving them would gain about 17% width for 2.5x the bytes, so
 the review screens keep the 320px thumbnails. Larger photo sizes will look soft. Sharper photos
 need new high-resolution scans from RAT (a client question).
+
+## 13. Amendment, 2026-11-15 (later): select, then Save & next; answer panel; no scrolling
+
+Asked for by the user after reviewing the finished card on a 2560x1440 screen. The model is the one
+image-labelling tools use: the photo on the left, the answers on the right, choose the labels, then
+one key saves and moves on. This replaces parts of §7's key table and §12.1, as noted.
+
+### 13.1 Answers are selected, then saved together (user's decisions)
+
+- **No loco in photo (X) and Not visible (N) select, they don't save.** The button lights up (tick,
+  outline) and pressing it again switches it off. Nothing is saved until Save & next. (User: "Select,
+  save on Enter".)
+- **No loco in photo covers the whole photo:** saving it sets every field (number and name) to
+  `no_loco`. (User: "Yes, both fields".)
+- Not visible is per field: one toggle per field, N for the queue's own field, the other field's
+  toggle by mouse only.
+- Selecting N on a field that shows No loco switches No loco off. Typing in a box switches off that
+  field's toggles (and No loco): there is something to read.
+- A photo that is already saved shows its saved answer lit (from its `status`) until the volunteer
+  changes it. A typed, unsaved edit beats a saved mark.
+- Back and Next forget unsaved selections; the photo shows its saved answer again on return. Typed
+  edits are still kept as drafts (§12.1).
+- **Save & next** (button, Enter; Ctrl+Enter inside a box) saves every field on the card and moves to
+  the next photo. It replaces Confirm, Keep current, Save edit, and the separate Edit button. Enter
+  with an edited box saves the edit: the card shows exactly what will be saved, so the old "you edited
+  — press Ctrl+Enter" guard is gone.
+  - The queue's own field is always saved: a selected mark, else a typed edit, else the open record's
+    values or suggestion, else the reviewed record as it is ("Keeps"). Nothing in the box and nothing
+    selected: nothing is saved and the card says so.
+  - The other field is saved only if the volunteer changed it on this card: typed in it, or selected
+    a mark it doesn't already have. Switching a saved mark off without typing anything saves nothing
+    for that field, so no answer is invented. (My call.)
+  - A "Saves:" list above the button names each field and what it will be saved as.
+- Use suggestion (U) now puts the new suggestion in the box; Save & next saves it.
+- Unchanged: the other field saves first with its own lock; a carried-in edit pauses the first press;
+  Ctrl+Enter from the other box never silently keeps a main record that needs a recheck; a held key
+  doesn't repeat a save or a toggle.
+- While the other field hasn't loaded, a save that would change it (a carried edit, or No loco)
+  waits with a notice.
+
+### 13.2 Layout (user's decisions)
+
+- Right-hand **answer panel** where the instructions were: "Whole photo: No loco in photo", "Can't
+  read it: No number visible / No name visible", Use new suggestion when offered, notices, the
+  "Saves:" list and a large **Save & next** button. Sticky beside the photo on wide screens.
+- The instructions moved behind a **Help** button beside Photo size: format instructions, how it
+  works, and the keyboard list. Review keys are ignored while Help is open.
+- **Back and Next sit directly beneath the photo**, with "Back and Next don't save" between them.
+- Below them: one line of details (image, collection, date, CD), the description, then the number and
+  name boxes side by side on wider screens, each headed by the field name in bold.
+- "Will be saved as: …" appears over a box whose field has a mark selected, so selecting never moves
+  the page.
+
+### 13.3 No scrolling at Normal size
+
+- At Normal photo size the whole card fits the window: the photo's height is the window height less
+  the rest of the page (about 44rem), between 14rem and 48rem. Large and Extra large give the photo
+  more room and may need a short scroll. Checked with no scroll at 1440x900, 1920x970 and 2560x1300
+  windows; a 1366x700 window scrolls a little once the photo reaches its minimum.
+- The page header is one row (title, Data fixes link, Grid, Photo size, Help); the "Migration status"
+  footer link is hidden on the review pages.
+- On the Data Fixes pages the whole page scales with the window width: 16px text up to a 1440px-wide
+  window, rising to 20px at 2560px (rem-based, on top of the browser's own text size and zoom).

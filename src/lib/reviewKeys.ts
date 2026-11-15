@@ -24,7 +24,7 @@ export function isTypingTarget(target: { tagName: string; isContentEditable: boo
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
 }
 
-// Ctrl/Cmd+Enter (save edit) is handled by the page, which knows about modifiers.
+// Ctrl/Cmd+Enter (Save & next from inside a box) is handled by the page, which knows about modifiers.
 // Escape (discard the edit) only counts while typing, so a stray Escape never throws away work.
 export function shortcutFor(
   key: string,
@@ -34,14 +34,12 @@ export function shortcutFor(
   return KEYS[key.toLowerCase()] ?? null
 }
 
-// Ctrl/Cmd+Enter in the other fix's box saves the whole card (confirm, which saves its edit first)
-// unless the main box has its own edit, in which case it's the usual save-edit. A main record that
-// needs a recheck is never implicitly "kept": the reviewer must choose for it.
+// Ctrl/Cmd+Enter in a box is Save & next. From the other field's box, a main record that needs a
+// recheck and wasn't touched is never implicitly "kept": the reviewer must look at it first.
 export function ctrlEnterAction(
   inOtherBox: boolean,
-  mainDirty: boolean,
+  mainTouched: boolean,
   mainNeedsRecheck: boolean,
-): 'saveEdit' | 'confirm' | 'chooseMain' {
-  if (!inOtherBox || mainDirty) return 'saveEdit'
-  return mainNeedsRecheck ? 'chooseMain' : 'confirm'
+): 'confirm' | 'chooseMain' {
+  return inOtherBox && !mainTouched && mainNeedsRecheck ? 'chooseMain' : 'confirm'
 }
