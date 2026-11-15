@@ -3,15 +3,17 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { BulkConfirmGrid } from '@/components/admin/fixes/BulkConfirmGrid'
 import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
-import { ReviewCard, type CardAction, type CardNotice } from '@/components/admin/fixes/ReviewCard'
+import { ReviewCard, type CardAction, type CardNotice, type CompanionView } from '@/components/admin/fixes/ReviewCard'
 import { PhotoSizeControl } from '@/components/admin/fixes/PhotoSizeControl'
+import { useCompanions } from '@/hooks/useCompanions'
 import { useFixQueue } from '@/hooks/useFixQueue'
 import { usePhotoSize } from '@/hooks/usePhotoSize'
 import type { PhotoSize } from '@/lib/photoSize'
 import { emptyQueueMessage, parseQueueParams, serializeQueueParams, type QueueParams } from '@/lib/queueParams'
+import { companionDecision, isCompanionDirty } from '@/lib/companionSave'
 import { canUseSuggestion, decideSave, editBaseline, isReviewed, sameValues, type SaveDecision } from '@/lib/reviewDecision'
 import { draftKey, isDraftOutdated, reviewDrafts } from '@/lib/reviewDrafts'
-import { isTypingTarget, shortcutFor } from '@/lib/reviewKeys'
+import { ctrlEnterAction, isTypingTarget, shortcutFor } from '@/lib/reviewKeys'
 import { adminSupabase } from '@/lib/supabase/adminClient'
 import {
   getFixes,
@@ -20,6 +22,7 @@ import {
   normaliseValues,
   reviewValue,
   type DataFix,
+  type FixStatus,
 } from '@/services/dataFixService'
 import { getReviewImageUrl } from '@/services/images'
 
@@ -51,7 +54,17 @@ function ownsEnter(el: HTMLElement | null): boolean {
 
 const SAVE_ACTIONS: CardAction[] = ['confirm', 'useSuggestion', 'notVisible', 'noLoco', 'saveEdit']
 
-function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueueParams; photoSize: PhotoSize }) {
+function ReviewQueue({
+  fix,
+  params,
+  photoSize,
+  companionFixes,
+}: {
+  fix: DataFix
+  params: QueueParams
+  photoSize: PhotoSize
+  companionFixes: DataFix[]
+}) {
   const queue = useFixQueue(fix.id, params)
   const { records, patch } = queue
   const [index, setIndex] = useState(0)
@@ -69,6 +82,32 @@ function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueuePa
   const dirty = !!storedDraft && !sameValues(normaliseValues(storedDraft.text), baseline)
   // Typed before this record last changed (elsewhere, or before a reload): never dropped, but flagged.
   const draftOutdated = !!rec && !!storedDraft && dirty && isDraftOutdated(storedDraft, rec.updated_at)
+
+  const companionIds = companionFixes.map((f) => f.id)
+  const upcomingNos = records.slice(index + 1, index + 1 + PRELOAD_IMAGES).map((r) => r.image_no)
+  const companionData = useCompanions(rec?.image_no, companionIds, upcomingNos)
+  const companionRows = companionData.rows
+  const companionsState: 'loading' | 'error' | 'ready' =
+    companionIds.length === 0 || companionRows ? 'ready' : companionData.isError ? 'error' : 'loading'
+  const companionViews: CompanionView[] = []
+  if (rec && companionRows) {
+    for (const f of companionFixes) {
+      const row = companionRows.find((r) => r.fix_id === f.id)
+      if (!row) continue
+      const stored = reviewDrafts.get(draftKey(f.id, rec.image_no))
+      const text = stored?.text ?? editBaseline(row).join('\n')
+      const isDirty = !!stored && isCompanionDirty(row, stored.text)
+      companionViews.push({
+        fixId: f.id,
+        title: f.title,
+        notVisibleLabel: notVisibleLabel(f.id),
+        row,
+        draft: text,
+        dirty: isDirty,
+        draftOutdated: !!stored && isDirty && isDraftOutdated(stored, row.updated_at),
+      })
+    }
+  }
 
   const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = queue
   useEffect(() => {
@@ -97,6 +136,21 @@ function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueuePa
   const rebaseDraft = (k: string, updatedAt: string) => {
     const d = reviewDrafts.get(k)
     if (d) reviewDrafts.set(k, { text: d.text, baseUpdatedAt: updatedAt })
+    rerender()
+  }
+
+  const setCompanionDraft = (fixId: string, text: string) => {
+    const row = companionRows?.find((r) => r.fix_id === fixId)
+    if (!rec || !row) return
+    const k = draftKey(fixId, rec.image_no)
+    const stored = reviewDrafts.get(k)
+    reviewDrafts.set(k, { text, baseUpdatedAt: stored ? stored.baseUpdatedAt : row.updated_at })
+    rerender()
+  }
+
+  const discardCompanionDraft = (fixId: string) => {
+    if (!rec) return
+    reviewDrafts.delete(draftKey(fixId, rec.image_no))
     rerender()
   }
 
@@ -132,6 +186,71 @@ function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueuePa
   }, [loadError])
   const loadSignedOut = !!loadError && signedOutCheck?.error === loadError && signedOutCheck.signedOut
 
+  // Saves each edited companion before the main save. Returns true when it's fine to carry on; on
+  // any problem it shows a notice (prefixed with the companion's title) and returns false.
+  const saveCompanions = async (target: typeof rec & object): Promise<boolean> => {
+    for (const c of companionViews) {
+      const stored = reviewDrafts.get(draftKey(c.fixId, target.image_no))
+      const decision = stored ? companionDecision(c.row, stored.text) : null
+      if (!stored || !decision) continue
+      const k = draftKey(c.fixId, target.image_no)
+      if (isDraftOutdated(stored, c.row.updated_at)) {
+        rebaseDraft(k, c.row.updated_at)
+        setNotice({
+          tone: 'info',
+          text: `${c.title} changed after you typed your edit. Check it against the photo, then save again.`,
+        })
+        return false
+      }
+      const outcome = await reviewValue({
+        imageNo: target.image_no,
+        fixId: c.fixId,
+        values: decision.values,
+        status: decision.status,
+        expectedUpdatedAt: c.row.updated_at,
+      })
+      if (outcome.ok) {
+        const status: FixStatus = decision.status
+        companionData.setRow(c.fixId, {
+          status,
+          values: status === 'none_visible' || status === 'no_loco' ? [] : decision.values,
+          needs_recheck: false,
+          updated_at: outcome.updated_at,
+        })
+        reviewDrafts.delete(k)
+        continue
+      }
+      if (outcome.reason === 'stale') {
+        try {
+          const fresh = await getValue(c.fixId, target.image_no)
+          if (fresh) {
+            companionData.setRow(c.fixId, fresh)
+            rebaseDraft(k, fresh.updated_at)
+            setNotice({ tone: 'info', text: `${c.title}: Someone else changed this record — reloaded` })
+          } else {
+            setNotice({ tone: 'error', text: `${c.title}: This record no longer exists.` })
+          }
+        } catch {
+          setNotice({
+            tone: 'error',
+            text: `${c.title}: Someone else changed this record, and reloading it failed. Go Back and forward to retry.`,
+          })
+        }
+      } else if (outcome.reason === 'signed-out') {
+        setNotice({ tone: 'error', text: `${c.title}: Signed out — sign in again`, onSignIn: signInAgain })
+      } else if (outcome.reason === 'forbidden') {
+        setNotice({ tone: 'error', text: `${c.title}: This account isn't allowed to review fixes.` })
+      } else {
+        setNotice({
+          tone: 'error',
+          text: `${c.title}: Couldn't save: ${outcome.message}. Nothing was lost — try again.`,
+        })
+      }
+      return false
+    }
+    return true
+  }
+
   const save = async ({ status, values }: SaveDecision) => {
     if (!rec || savingRef.current) return
     const target = rec
@@ -141,6 +260,7 @@ function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueuePa
     setSaving(true)
     setNotice(null)
     try {
+      if (!(await saveCompanions(target))) return
       const outcome = await reviewValue({
         imageNo: target.image_no,
         fixId: fix.id,
@@ -275,8 +395,10 @@ function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueuePa
 
   // The window listener is attached once and always calls the latest render's handler.
   const runRef = useRef(run)
+  const keyState = useRef({ mainDirty: dirty, discardCompanion: discardCompanionDraft })
   useLayoutEffect(() => {
     runRef.current = run
+    keyState.current = { mainDirty: dirty, discardCompanion: discardCompanionDraft }
   })
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.altKey || e.isComposing || e.defaultPrevented) return
@@ -286,14 +408,21 @@ function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueuePa
     if (isTypingTarget(target) && !inEditBox) return // filter fields and other inputs keep their keys
     if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && ownsEnter(el)) return
 
+    // '' is the main box; a fix id is that fix's companion box.
+    const companionBox = inEditBox && el?.dataset.reviewEdit ? el.dataset.reviewEdit : null
     let action: CardAction | null
     if (e.ctrlKey || e.metaKey) {
-      action = e.key === 'Enter' ? 'saveEdit' : null
+      action = e.key === 'Enter' ? ctrlEnterAction(!!companionBox, keyState.current.mainDirty) : null
     } else {
       action = shortcutFor(e.key, target)
     }
     if (!action) return
     e.preventDefault()
+    if (action === 'cancelEdit' && companionBox) {
+      keyState.current.discardCompanion(companionBox)
+      el?.blur()
+      return
+    }
     if (savingRef.current) return
     if (e.repeat && SAVE_ACTIONS.includes(action)) return // a held key must not review a run of records
     runRef.current(action)
@@ -392,6 +521,11 @@ function ReviewQueue({ fix, params, photoSize }: { fix: DataFix; params: QueuePa
         onDraftChange={setDraft}
         onAction={run}
         canGoBack={index > 0}
+        companions={companionViews}
+        companionsState={companionsState}
+        companionTitles={companionFixes.map((f) => f.title)}
+        onCompanionRetry={companionData.refetch}
+        onCompanionDraftChange={setCompanionDraft}
       />
     </>
   )
@@ -448,7 +582,15 @@ export function FixQueuePage() {
       {fixes.isPending && <div className={box}>Loading…</div>}
       {fixes.isSuccess && !fix && <div className={box}>There is no data fix called “{fixId}”.</div>}
       {fix && showGrid && <BulkConfirmGrid key={queueKey} fixId={fix.id} params={params} photoSize={photoSize} />}
-      {fix && !showGrid && <ReviewQueue key={queueKey} fix={fix} params={params} photoSize={photoSize} />}
+      {fix && !showGrid && (
+        <ReviewQueue
+          key={queueKey}
+          fix={fix}
+          params={params}
+          photoSize={photoSize}
+          companionFixes={(fixes.data ?? []).filter((f) => f.id !== fix.id).sort((a, b) => a.sort_order - b.sort_order)}
+        />
+      )}
     </div>
   )
 }

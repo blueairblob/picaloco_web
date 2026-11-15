@@ -33,3 +33,9 @@ export function shortcutFor(
   if (isTypingTarget(target)) return key === 'Escape' ? 'cancelEdit' : null
   return KEYS[key.toLowerCase()] ?? null
 }
+
+// Ctrl/Cmd+Enter in the other fix's box saves the whole card (confirm, which saves its edit first)
+// unless the main box has its own edit, in which case it's the usual save-edit.
+export function ctrlEnterAction(inOtherBox: boolean, mainDirty: boolean): 'saveEdit' | 'confirm' {
+  return inOtherBox && !mainDirty ? 'confirm' : 'saveEdit'
+}

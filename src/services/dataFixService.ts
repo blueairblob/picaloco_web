@@ -238,3 +238,31 @@ export async function confirmMany(fixId: string, items: ConfirmItem[]): Promise<
   if (error) throw error
   return Number(data ?? 0)
 }
+
+export interface CompanionValue {
+  fix_id: string
+  values: string[]
+  suggested_values: string[]
+  confidence: FixConfidence
+  status: FixStatus
+  needs_recheck: boolean
+  // Kept exactly as the server sent it (microseconds): it is the optimistic-lock token.
+  updated_at: string
+}
+
+// The other fixes' rows for one photo, in the order of fixIds.
+export async function getCompanionValues(imageNo: string, fixIds: string[]): Promise<CompanionValue[]> {
+  if (fixIds.length === 0) return []
+  const { data, error } = await adminSupabase
+    .from('data_fix_value')
+    .select('fix_id,values,suggested_values,confidence,status,needs_recheck,updated_at')
+    .eq('image_no', imageNo)
+    .in('fix_id', fixIds)
+  if (error) throw error
+  const rows = ((data ?? []) as CompanionValue[]).map((r) => ({
+    ...r,
+    values: r.values ?? [],
+    suggested_values: r.suggested_values ?? [],
+  }))
+  return fixIds.flatMap((id) => rows.filter((r) => r.fix_id === id))
+}

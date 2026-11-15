@@ -2,14 +2,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const rpc = vi.fn()
 const getSession = vi.fn()
+const from = vi.fn()
 vi.mock('@/lib/supabase/adminClient', () => ({
-  adminSupabase: { rpc: (...a: unknown[]) => rpc(...a), auth: { getSession: () => getSession() } },
+  adminSupabase: {
+    rpc: (...a: unknown[]) => rpc(...a),
+    from: (...a: unknown[]) => from(...a),
+    auth: { getSession: () => getSession() },
+  },
 }))
 
 import {
   confirmMany,
   toConfirmItems,
   escapeLike,
+  getCompanionValues,
   formatWarnings,
   isSignedOutError,
   getQueuePage,
@@ -196,5 +202,57 @@ describe('toConfirmItems / confirmMany', () => {
   it('throws on RPC error', async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
     await expect(confirmMany('x', [])).rejects.toBeTruthy()
+  })
+})
+
+describe('getCompanionValues', () => {
+  const chain = (result: { data: unknown; error: unknown }) => {
+    const b = {
+      select: vi.fn(() => b),
+      eq: vi.fn(() => b),
+      in: vi.fn(() => Promise.resolve(result)),
+    }
+    from.mockReturnValue(b)
+    return b
+  }
+  const dbRow = (fix_id: string, over: Record<string, unknown> = {}) => ({
+    fix_id,
+    values: null,
+    suggested_values: null,
+    confidence: 'high',
+    status: 'extracted',
+    needs_recheck: false,
+    updated_at: '2026-01-01T00:00:00.123456+00:00',
+    ...over,
+  })
+
+  beforeEach(() => from.mockReset())
+
+  it('queries one photo and the given fixes, defaulting null arrays', async () => {
+    const b = chain({ data: [dbRow('loco_name')], error: null })
+    const out = await getCompanionValues('ab1', ['loco_name'])
+    expect(from).toHaveBeenCalledWith('data_fix_value')
+    expect(b.eq).toHaveBeenCalledWith('image_no', 'ab1')
+    expect(b.in).toHaveBeenCalledWith('fix_id', ['loco_name'])
+    expect(out).toHaveLength(1)
+    expect(out[0].values).toEqual([])
+    expect(out[0].suggested_values).toEqual([])
+  })
+
+  it('returns rows in fixIds order', async () => {
+    chain({ data: [dbRow('b'), dbRow('a')], error: null })
+    const out = await getCompanionValues('ab1', ['a', 'b'])
+    expect(out.map((r) => r.fix_id)).toEqual(['a', 'b'])
+  })
+
+  it('makes no request without fixes', async () => {
+    expect(await getCompanionValues('ab1', [])).toEqual([])
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('throws a returned error', async () => {
+    const err = { message: 'boom' }
+    chain({ data: null, error: err })
+    await expect(getCompanionValues('ab1', ['a'])).rejects.toBe(err)
   })
 })

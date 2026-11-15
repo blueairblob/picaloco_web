@@ -4,7 +4,7 @@ import { REVIEW_PHOTO_HEIGHT, type PhotoSize } from '@/lib/photoSize'
 import { canUseSuggestion, isReviewed } from '@/lib/reviewDecision'
 import type { ReviewAction } from '@/lib/reviewKeys'
 import type { QueueEntry } from '@/hooks/useFixQueue'
-import { formatWarnings, normaliseValues, type FixStatus } from '@/services/dataFixService'
+import { formatWarnings, normaliseValues, type CompanionValue, type FixStatus } from '@/services/dataFixService'
 import { getReviewImageUrl } from '@/services/images'
 
 export type CardAction = ReviewAction | 'saveEdit'
@@ -84,7 +84,7 @@ function ZoomImage({ imageNo, photoSize }: { imageNo: string; photoSize: PhotoSi
 }
 
 // The reviewed record's current answer, in words.
-function currentReviewText(record: QueueEntry, notVisibleLabel: string): string {
+function currentReviewText(record: Pick<QueueEntry, 'status' | 'values'>, notVisibleLabel: string): string {
   if (record.status === 'none_visible') return notVisibleLabel
   if (record.status === 'no_loco') return 'No loco in photo'
   return record.values.length > 0 ? record.values.join('; ') : 'none'
@@ -107,6 +107,82 @@ function Description({ text, terms }: { text: string | null; terms: string[] }) 
   )
 }
 
+export interface CompanionView {
+  fixId: string
+  title: string
+  notVisibleLabel: string
+  row: CompanionValue
+  draft: string
+  dirty: boolean
+  draftOutdated: boolean
+}
+
+function CompanionBlock({
+  c,
+  saving,
+  onChange,
+}: {
+  c: CompanionView
+  saving: boolean
+  onChange: (fixId: string, text: string) => void
+}) {
+  const { row } = c
+  const reviewed = isReviewed(row)
+  const confidence = `${CONFIDENCE_LABEL[row.confidence] ?? row.confidence} confidence`
+  const empty = normaliseValues(c.draft).length === 0
+  const id = `review-values-${c.fixId}`
+  return (
+    <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label htmlFor={id} className="text-sm font-medium text-[var(--foreground)]">
+          Also on this photo: {c.title} <span className="font-normal text-[var(--muted)]">(one per line)</span>
+        </label>
+        <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]">
+          {STATUS_LABEL[row.status] ?? row.status}
+        </span>
+      </div>
+      <textarea
+        id={id}
+        data-review-edit={c.fixId}
+        rows={2}
+        value={c.draft}
+        readOnly={saving}
+        onChange={(e) => onChange(c.fixId, e.target.value)}
+        className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-sm text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none"
+      />
+      {reviewed ? (
+        <p className="text-sm text-[var(--muted)]">
+          Current review:{' '}
+          <span className="font-medium text-[var(--foreground)]">{currentReviewText(row, c.notVisibleLabel)}</span>
+        </p>
+      ) : (
+        <p className="text-sm text-[var(--muted)]">
+          Suggestion:{' '}
+          <span className="text-[var(--foreground)]">
+            {row.suggested_values.length > 0 ? row.suggested_values.join(', ') : 'none'}
+          </span>{' '}
+          ({confidence})
+        </p>
+      )}
+      {c.draftOutdated && (
+        <p
+          role="alert"
+          className="rounded-lg border-2 border-[var(--warning)] px-3 py-2 text-sm font-medium text-[var(--warning)]"
+        >
+          Your unsaved edit was typed before this record changed — check it before saving.
+        </p>
+      )}
+      {c.dirty && (
+        <p className="text-sm text-[var(--warning)]">
+          {empty
+            ? `Empty — will be saved as ‘${c.notVisibleLabel}’.`
+            : 'Edited — saved with this record when you confirm or save.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export interface ReviewCardProps {
   record: QueueEntry
   position: string
@@ -122,6 +198,11 @@ export interface ReviewCardProps {
   onAction: (action: CardAction) => void
   canGoBack: boolean
   photoSize: PhotoSize
+  companions: CompanionView[]
+  companionsState: 'loading' | 'error' | 'ready'
+  companionTitles: string[]
+  onCompanionRetry: () => void
+  onCompanionDraftChange: (fixId: string, text: string) => void
 }
 
 export function ReviewCard({
@@ -139,6 +220,11 @@ export function ReviewCard({
   onAction,
   canGoBack,
   photoSize,
+  companions,
+  companionsState,
+  companionTitles,
+  onCompanionRetry,
+  onCompanionDraftChange,
 }: ReviewCardProps) {
   const warnings = formatWarnings(normaliseValues(draft))
   const reviewed = isReviewed(record)
@@ -251,6 +337,24 @@ export function ReviewCard({
             </ul>
           )}
         </div>
+
+        {companionsState === 'loading' && companionTitles.length > 0 && (
+          <p className="border-t border-[var(--border)] pt-4 text-sm text-[var(--muted)]">
+            Loading {companionTitles.join(', ')}…
+          </p>
+        )}
+        {companionsState === 'error' && companionTitles.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4 text-sm text-[var(--danger)]">
+            Couldn't load {companionTitles.join(', ')} for this photo.
+            <button type="button" onMouseDown={noFocus} onClick={onCompanionRetry} className={btn}>
+              Retry
+            </button>
+          </div>
+        )}
+        {companionsState === 'ready' &&
+          companions.map((c) => (
+            <CompanionBlock key={c.fixId} c={c} saving={saving} onChange={onCompanionDraftChange} />
+          ))}
 
         {notice && (
           <div

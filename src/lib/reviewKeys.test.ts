@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shortcutFor } from './reviewKeys'
+import { ctrlEnterAction, shortcutFor } from './reviewKeys'
 
 const div = { tagName: 'DIV', isContentEditable: false }
 const textarea = { tagName: 'TEXTAREA', isContentEditable: false }
@@ -28,5 +28,14 @@ describe('shortcutFor', () => {
     expect(shortcutFor('U', { tagName: 'INPUT', isContentEditable: false })).toBeNull()
     expect(shortcutFor('n', { tagName: 'INPUT', isContentEditable: false })).toBeNull()
     expect(shortcutFor('n', { tagName: 'DIV', isContentEditable: true })).toBeNull()
+  })
+})
+
+describe('ctrlEnterAction', () => {
+  it('confirms only from the other box when the main box is clean', () => {
+    expect(ctrlEnterAction(true, false)).toBe('confirm')
+    expect(ctrlEnterAction(true, true)).toBe('saveEdit')
+    expect(ctrlEnterAction(false, false)).toBe('saveEdit')
+    expect(ctrlEnterAction(false, true)).toBe('saveEdit')
   })
 })
