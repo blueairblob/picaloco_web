@@ -57,7 +57,7 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
             <select
               value={run.id}
               onChange={(e) => setPicked(Number(e.target.value))}
-              className="ml-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-[var(--foreground)]"
+              className="ml-1 min-h-11 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 text-base text-[var(--foreground)]"
             >
               {(runs.data ?? []).map((r) => (
                 <option key={r.id} value={r.id}>
