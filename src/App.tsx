@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, Route, Routes, useLocation } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { SearchPage } from '@/pages/SearchPage'
 import { PhotoDetailPage } from '@/pages/PhotoDetailPage'
@@ -29,14 +29,6 @@ export function App() {
         <Route path="/admin/fixes/:fixId" element={<RequireAdmin><FixQueuePage /></RequireAdmin>} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-      {/* Not on the review pages: every line of height there goes to the photo. */}
-      {!reviewing && (
-        <footer className="mx-auto w-full max-w-6xl px-6 py-6 text-center">
-          <Link to="/admin" className="text-xs text-[var(--muted)] no-underline hover:text-[var(--accent)]">
-            Migration status
-          </Link>
-        </footer>
-      )}
     </>
   )
 }

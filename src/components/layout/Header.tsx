@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ThemeToggle } from './ThemeToggle'
+import { UserMenu } from './UserMenu'
 
 export function Header() {
   return (
@@ -8,7 +8,7 @@ export function Header() {
         <Link to="/" className="site-title text-lg font-semibold tracking-tight text-[var(--foreground)] no-underline">
           RAT Photo Archive
         </Link>
-        <ThemeToggle />
+        <UserMenu />
       </div>
     </header>
   )
