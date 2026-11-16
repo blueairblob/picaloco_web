@@ -7,15 +7,17 @@ import { AdminPage } from '@/pages/AdminPage'
 import { DataFixesPage } from '@/pages/DataFixesPage'
 import { FixQueuePage } from '@/pages/FixQueuePage'
 import { ModelCheckPage } from '@/pages/ModelCheckPage'
+import { ModelCheckQueuePage } from '@/pages/ModelCheckQueuePage'
 import { RequireAdmin } from '@/components/admin/RequireAdmin'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { useTextSize } from '@/hooks/useTextSize'
 
 export function App() {
   const { pathname } = useLocation()
-  const reviewing = pathname.startsWith('/admin/fixes')
+  // The Data Fixes and model check photo pages.
+  const reviewing = pathname.startsWith('/admin/fixes') || pathname.startsWith('/admin/model-check/')
   useTextSize() // applies the stored text size on load
-  // The Data Fixes pages scale their text with the window (see .scale-text in index.css).
+  // These pages scale their text with the window (see .scale-text in index.css).
   useEffect(() => {
     document.documentElement.classList.toggle('scale-text', reviewing)
   }, [reviewing])
@@ -29,10 +31,7 @@ export function App() {
         <Route path="/admin/fixes" element={<RequireAdmin><DataFixesPage /></RequireAdmin>} />
         <Route path="/admin/fixes/:fixId" element={<RequireAdmin><FixQueuePage /></RequireAdmin>} />
         <Route path="/admin/model-check" element={<RequireAdmin><ModelCheckPage /></RequireAdmin>} />
-        <Route
-          path="/admin/model-check/:taskId"
-          element={<RequireAdmin><div className="p-10 text-[var(--muted)]">Check queue coming soon.</div></RequireAdmin>}
-        />
+        <Route path="/admin/model-check/:taskId" element={<RequireAdmin><ModelCheckQueuePage /></RequireAdmin>} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>

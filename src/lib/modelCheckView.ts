@@ -1,0 +1,55 @@
+import type { CheckMode } from '@/lib/modelCheckParams'
+import type { FixStateEntry, ModelTask } from '@/services/modelCheckService'
+
+export function answerLabel(task: ModelTask, answerId: string): string {
+  return task.answers.find((a) => a.id === answerId)?.label ?? answerId
+}
+
+// "Model thinks: Tram (93%)". Never in sample mode: the blind sample must not show the model's guess.
+export function modelThinksText(
+  task: ModelTask,
+  mode: CheckMode,
+  modelAnswer: string | null,
+  modelP: number | null,
+): string | null {
+  if (mode === 'sample' || !modelAnswer) return null
+  const pct = modelP === null ? '' : ` (${Math.round(modelP * 100)}%)`
+  return `Model thinks: ${answerLabel(task, modelAnswer)}${pct}`
+}
+
+// The answer selected when a photo is shown: the answer saved on this visit if there is one, else the
+// model's answer — except in sample mode, where nothing is selected until the volunteer picks.
+export function defaultPick(
+  task: ModelTask,
+  mode: CheckMode,
+  rec: { checked_answer: string | null; model_answer: string | null },
+): string | null {
+  const known = (id: string | null) => (id && task.answers.some((a) => a.id === id) ? id : null)
+  const saved = known(rec.checked_answer)
+  if (saved) return saved
+  return mode === 'sample' ? null : known(rec.model_answer)
+}
+
+export function formatCheckedDate(at: string): string {
+  const d = new Date(at)
+  if (Number.isNaN(d.getTime())) return at
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+export function checkedByText(email: string | null, at: string): string {
+  return `Checked by ${email || 'a volunteer'} on ${formatCheckedDate(at)}`
+}
+
+// The photo's Data Fixes state after a save that filled these fields with No loco.
+export function fixStateAfterSave(
+  state: Record<string, FixStateEntry> | null,
+  filled: string[],
+): Record<string, FixStateEntry> | null {
+  if (!state || filled.length === 0) return state
+  const next = { ...state }
+  for (const id of filled) {
+    const s = next[id]
+    if (s) next[id] = { ...s, status: 'no_loco', values: [] }
+  }
+  return next
+}
