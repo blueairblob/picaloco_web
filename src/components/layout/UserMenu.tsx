@@ -55,8 +55,24 @@ export function UserMenu() {
     const onPointerDown = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false)
     }
+    // While the menu is open no key reaches the review page's shortcuts (Enter = Save & next), even
+    // when focus is not in the menu: Safari and Firefox on macOS don't focus a button on click.
+    // Runs in the capture phase, before the page's own window listener.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setOpen(false)
+        button.current?.focus()
+      } else if (!root.current?.contains(e.target as Node)) {
+        e.stopPropagation()
+      }
+    }
     document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown, true)
+    }
   }, [open])
 
   const close = () => setOpen(false)
@@ -65,14 +81,10 @@ export function UserMenu() {
     <div
       ref={root}
       className="relative"
-      // Keys pressed on the menu stay in the menu: the review page's shortcuts (Enter = Save & next)
-      // listen on window and must not fire while someone is using the menu.
+      // Keys pressed inside the open menu stay in the menu. Once it is closed, keys pass through, so
+      // the review shortcuts work again after Escape (Enter on the button is ignored by the page).
       onKeyDown={(e) => {
-        e.stopPropagation()
-        if (e.key === 'Escape' && open) {
-          setOpen(false)
-          button.current?.focus()
-        }
+        if (open) e.stopPropagation()
       }}
     >
       <button
@@ -93,7 +105,7 @@ export function UserMenu() {
         <div
           role="menu"
           aria-label="Menu"
-          className="absolute right-0 z-20 mt-2 w-64 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
+          className="absolute right-0 z-20 mt-2 max-h-[calc(100dvh-6rem)] w-64 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
         >
           <div className={heading}>Theme</div>
           {THEMES.map(([t, label]) => (

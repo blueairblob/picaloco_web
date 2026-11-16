@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { parseTextSize, TEXT_SIZE_KEY, type TextSize } from '@/lib/textSize'
+import { parseTextSize, TEXT_SIZE_EVENT, TEXT_SIZE_KEY, textSizeFromEvent, type TextSize } from '@/lib/textSize'
 
 function readStored(): TextSize {
   try {
@@ -18,9 +18,9 @@ export function useTextSize() {
 
   // Another component's change (the menu) reaches App's copy through this event.
   useEffect(() => {
-    const onChange = () => setTextSizeState(readStored())
-    window.addEventListener('picaloco-text-size', onChange)
-    return () => window.removeEventListener('picaloco-text-size', onChange)
+    const onChange = (e: Event) => setTextSizeState(textSizeFromEvent(e))
+    window.addEventListener(TEXT_SIZE_EVENT, onChange)
+    return () => window.removeEventListener(TEXT_SIZE_EVENT, onChange)
   }, [])
 
   const setTextSize = (next: TextSize) => {
@@ -30,7 +30,7 @@ export function useTextSize() {
     } catch {
       // not remembered, still applied for this visit
     }
-    window.dispatchEvent(new Event('picaloco-text-size'))
+    window.dispatchEvent(new CustomEvent(TEXT_SIZE_EVENT, { detail: next }))
   }
 
   return { textSize, setTextSize }
