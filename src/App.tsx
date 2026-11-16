@@ -8,10 +8,12 @@ import { DataFixesPage } from '@/pages/DataFixesPage'
 import { FixQueuePage } from '@/pages/FixQueuePage'
 import { RequireAdmin } from '@/components/admin/RequireAdmin'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { useTextSize } from '@/hooks/useTextSize'
 
 export function App() {
   const { pathname } = useLocation()
   const reviewing = pathname.startsWith('/admin/fixes')
+  useTextSize() // applies the stored text size on load
   // The Data Fixes pages scale their text with the window (see .scale-text in index.css).
   useEffect(() => {
     document.documentElement.classList.toggle('scale-text', reviewing)

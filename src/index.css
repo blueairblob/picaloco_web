@@ -15,11 +15,21 @@
   color-scheme: light dark;
 }
 
+/* Menu > Text size. Large multiplies the root size on every page, including the scaled Data Fixes
+   pages below. */
+html {
+  --text-scale: 1;
+  font-size: calc(var(--text-scale) * 100%);
+}
+html.text-large {
+  --text-scale: 1.125;
+}
+
 /* Data Fixes pages: everything is sized in rem, so raising the root size enlarges text, buttons,
    icons and photos together. 16px up to a 1440px-wide window, growing to 20px at 2560px. Based on
    the browser's own text-size setting (rem, %), and Ctrl + / Ctrl - still zoom on top. */
 html.scale-text {
-  font-size: clamp(100%, 0.68rem + 0.357vw, 125%);
+  font-size: calc(var(--text-scale) * clamp(100%, 0.68rem + 0.357vw, 125%));
 }
 
 :root[data-theme='light'] {
