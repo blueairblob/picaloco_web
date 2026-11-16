@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkedByText, defaultPick, fixStateAfterSave, modelThinksText } from './modelCheckView'
+import { canSavePhoto, checkedByText, defaultPick, fixStateAfterSave, guardAfterSave, guardOnShow, modelThinksText } from './modelCheckView'
 import type { FixStateEntry, ModelTask } from '@/services/modelCheckService'
 
 const task: ModelTask = {
@@ -68,5 +68,26 @@ describe('fixStateAfterSave', () => {
     const before = { loco_number: e('extracted') }
     expect(fixStateAfterSave(before, [])).toBe(before)
     expect(fixStateAfterSave(null, ['loco_number'])).toBeNull()
+  })
+})
+
+describe('save guard', () => {
+  it('refuses a save for the photo just saved, before the view advanced', () => {
+    const g = guardAfterSave('arc00001')
+    expect(canSavePhoto(g, 'arc00001')).toBe(false)
+    // The page has not re-rendered yet: it still shows the saved photo, so the guard holds.
+    expect(canSavePhoto(guardOnShow(g, 'arc00001'), 'arc00001')).toBe(false)
+  })
+  it('clears once the next photo is shown, so Back can save a correction', () => {
+    const next = guardOnShow(guardAfterSave('arc00001'), 'arc00002')
+    expect(canSavePhoto(next, 'arc00002')).toBe(true)
+    const back = guardOnShow(next, 'arc00001')
+    expect(canSavePhoto(back, 'arc00001')).toBe(true)
+  })
+  it('clears when the queue runs out after the last photo', () => {
+    expect(guardOnShow(guardAfterSave('arc00003'), '')).toBeNull()
+  })
+  it('allows any save when nothing was just saved', () => {
+    expect(canSavePhoto(null, 'arc00001')).toBe(true)
   })
 })

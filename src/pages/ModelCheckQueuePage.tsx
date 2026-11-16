@@ -11,7 +11,16 @@ import { usePhotoSize } from '@/hooks/usePhotoSize'
 import { checkShortcut, type CheckAction } from '@/lib/modelCheckKeys'
 import { linkPreview } from '@/lib/modelCheckLink'
 import { parseCheckParams, serializeCheckParams, type CheckMode, type CheckParams } from '@/lib/modelCheckParams'
-import { checkedByText, defaultPick, fixStateAfterSave, modelThinksText } from '@/lib/modelCheckView'
+import {
+  canSavePhoto,
+  checkedByText,
+  defaultPick,
+  fixStateAfterSave,
+  guardAfterSave,
+  guardOnShow,
+  modelThinksText,
+  type SaveGuard,
+} from '@/lib/modelCheckView'
 import type { PhotoSize } from '@/lib/photoSize'
 import { adminSupabase } from '@/lib/supabase/adminClient'
 import { getFixes, isSignedOutError } from '@/services/dataFixService'
@@ -65,9 +74,12 @@ function CheckQueue({
 
   // When the current photo appeared, for the double-press guard.
   const shownAt = useRef(0)
+  // The photo just saved, held until another photo is shown (set synchronously on success).
+  const savedGuard = useRef<SaveGuard>(null)
   const shownImage = rec?.image_no ?? ''
   useLayoutEffect(() => {
     shownAt.current = performance.now()
+    savedGuard.current = guardOnShow(savedGuard.current, shownImage)
   }, [shownImage])
 
   const upcoming = records
@@ -117,6 +129,8 @@ function CheckQueue({
   const save = async () => {
     // One save at a time: the ref is set before the first await, so a second press is ignored.
     if (!rec || !picked || savingRef.current) return
+    // A key pressed after a save but before the page advanced still sees the saved photo: refuse it.
+    if (!canSavePhoto(savedGuard.current, rec.image_no)) return
     const target = rec
     const answer = picked
     const at = index
@@ -134,6 +148,7 @@ function CheckQueue({
         shownAnswer: blind ? null : target.model_answer,
       })
       if (outcome.ok) {
+        savedGuard.current = guardAfterSave(target.image_no)
         patch(target.image_no, {
           done: true,
           checked_answer: answer,

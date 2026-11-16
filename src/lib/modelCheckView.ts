@@ -53,3 +53,20 @@ export function fixStateAfterSave(
   }
   return next
 }
+
+// Answers are append-only, so a second save of the same photo is a duplicate row. After a save the
+// page advances on its next render; a key pressed before that render still sees the saved photo.
+// The guard holds the photo just saved until another photo is shown (Back then allows a correction).
+export type SaveGuard = string | null
+
+export function guardAfterSave(imageNo: string): SaveGuard {
+  return imageNo
+}
+
+export function guardOnShow(guard: SaveGuard, shownImageNo: string): SaveGuard {
+  return guard === shownImageNo ? guard : null
+}
+
+export function canSavePhoto(guard: SaveGuard, imageNo: string): boolean {
+  return guard !== imageNo
+}
