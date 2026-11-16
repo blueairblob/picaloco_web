@@ -2,7 +2,7 @@ import type { MouseEvent, ReactNode } from 'react'
 import { ZoomImage } from '@/components/admin/fixes/ZoomImage'
 import type { CardNotice } from '@/components/admin/fixes/ReviewCard'
 import type { CheckEntry } from '@/hooks/useModelCheckQueue'
-import type { PhotoSize } from '@/lib/photoSize'
+import { MODEL_CHECK_PHOTO_HEIGHT, type PhotoSize } from '@/lib/photoSize'
 import type { ModelTask } from '@/services/modelCheckService'
 
 const kbd =
@@ -92,7 +92,7 @@ export function ModelCheckCard({
           </span>
         </div>
 
-        <ZoomImage imageNo={record.image_no} photoSize={photoSize} />
+        <ZoomImage imageNo={record.image_no} photoSize={photoSize} heights={MODEL_CHECK_PHOTO_HEIGHT} />
 
         <nav aria-label="Move between photos" className="flex flex-wrap items-center justify-between gap-2">
           <button type="button" onMouseDown={noFocus} onClick={onBack} disabled={saving || !canGoBack} className={navBtn}>

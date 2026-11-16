@@ -396,8 +396,13 @@ Empty queue: "Nothing left for this filter".
 1. Before: `venv/bin/python scripts/data_fix_preservation_check.py --target-profile oci` (note the checksum).
 2. Check the live CHECK constraint name:
    `select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'rat.data_fix_history'::regclass and contype = 'c';`
-   — must be `data_fix_history_source_check`, else edit the patch's DROP line first.
+   — the patch now drops every CHECK on the table that mentions `source`, whatever its name, inside a transaction.
 3. Apply `supabase/schema/fix_data_fix_model_check.sql`, then `supabase/schema/add_model_check_tables.sql`, on `oci`.
 4. Load: `venv/bin/python scripts/load_model_run.py --task scripts/model_tasks/rat_subject_type.json --scores exports/ai_pilot/subject_scores.csv --model ViT-SO400M-14-SigLIP-384/webli --version 2026-11-16-zeroshot --target-profile oci` (dry run), then again with `--apply`.
-5. After: preservation check again — checksum unchanged. Again after the first live use of the page.
+5. After the load: preservation check again — checksum unchanged. This before/after pair covers the load step only.
 6. Deploy picaloco_web (Vercel, on push to main).
+7. After live use the checksum WILL change (each model-check fill adds a reviewed `no_loco` row), so do not
+   re-run it expecting equality. Verify instead; this must return 0:
+   `select count(*) from rat.data_fix_history where source = 'model_check' and (old_status is distinct from 'extracted' or new_status <> 'no_loco');`
+8. Live-apply notes: run `EXPLAIN ANALYZE` on one sample-mode queue page (`rat.model_check_queue` with `p_mode => 'sample'`) and check it is fast.
+   If the web reports a function not found after applying, run `NOTIFY pgrst, 'reload schema';`.

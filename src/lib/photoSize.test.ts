@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GRID_COLUMNS, PHOTO_SIZES, REVIEW_PHOTO_HEIGHT, TILE_LABEL, parsePhotoSize } from './photoSize'
+import { GRID_COLUMNS, PHOTO_SIZES, MODEL_CHECK_PHOTO_HEIGHT, REVIEW_PHOTO_HEIGHT, TILE_LABEL, parsePhotoSize } from './photoSize'
 
 describe('parsePhotoSize', () => {
   it('accepts valid sizes', () => {
@@ -27,5 +27,12 @@ describe('photo size tables', () => {
       expect(TILE_LABEL[id]).toBeTruthy()
       expect(REVIEW_PHOTO_HEIGHT[id]).toBeTruthy()
     }
+  })
+})
+
+describe('MODEL_CHECK_PHOTO_HEIGHT', () => {
+  it('covers every size and gives Normal more room than the Data Fixes photo', () => {
+    for (const { id } of PHOTO_SIZES) expect(MODEL_CHECK_PHOTO_HEIGHT[id]).toMatch(/^h-\[/)
+    expect(MODEL_CHECK_PHOTO_HEIGHT.normal).not.toBe(REVIEW_PHOTO_HEIGHT.normal)
   })
 })

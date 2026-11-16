@@ -2,7 +2,15 @@ import { useState, type MouseEvent } from 'react'
 import { REVIEW_PHOTO_HEIGHT, type PhotoSize } from '@/lib/photoSize'
 import { getReviewImageUrl } from '@/services/images'
 
-export function ZoomImage({ imageNo, photoSize }: { imageNo: string; photoSize: PhotoSize }) {
+export function ZoomImage({
+  imageNo,
+  photoSize,
+  heights = REVIEW_PHOTO_HEIGHT,
+}: {
+  imageNo: string
+  photoSize: PhotoSize
+  heights?: Record<PhotoSize, string>
+}) {
   const [zoomed, setZoomed] = useState(false)
   const [origin, setOrigin] = useState('50% 50%')
   const [failed, setFailed] = useState(false)
@@ -36,7 +44,7 @@ export function ZoomImage({ imageNo, photoSize }: { imageNo: string; photoSize: 
         src={getReviewImageUrl(imageNo)}
         alt={`Photo ${imageNo}`}
         onError={() => setFailed(true)}
-        className={`mx-auto ${REVIEW_PHOTO_HEIGHT[photoSize]} w-full object-contain transition-transform duration-150`}
+        className={`mx-auto ${heights[photoSize]} w-full object-contain transition-transform duration-150`}
         style={{ transform: zoomed ? 'scale(2)' : undefined, transformOrigin: origin }}
       />
     </button>

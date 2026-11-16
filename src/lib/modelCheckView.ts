@@ -70,3 +70,11 @@ export function guardOnShow(guard: SaveGuard, shownImageNo: string): SaveGuard {
 export function canSavePhoto(guard: SaveGuard, imageNo: string): boolean {
   return guard !== imageNo
 }
+
+// A save this soon after a photo appears is a double press or double click, not a look at the new
+// photo. It applies to every save path (Enter and the Save & next button).
+export const NEW_PHOTO_SAVE_GUARD_MS = 300
+
+export function newPhotoGuardActive(now: number, shownAt: number): boolean {
+  return now - shownAt < NEW_PHOTO_SAVE_GUARD_MS
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canSavePhoto, checkedByText, defaultPick, fixStateAfterSave, guardAfterSave, guardOnShow, modelThinksText } from './modelCheckView'
+import { canSavePhoto, checkedByText, defaultPick, fixStateAfterSave, guardAfterSave, guardOnShow, modelThinksText, newPhotoGuardActive, NEW_PHOTO_SAVE_GUARD_MS } from './modelCheckView'
 import type { FixStateEntry, ModelTask } from '@/services/modelCheckService'
 
 const task: ModelTask = {
@@ -89,5 +89,16 @@ describe('save guard', () => {
   })
   it('allows any save when nothing was just saved', () => {
     expect(canSavePhoto(null, 'arc00001')).toBe(true)
+  })
+})
+
+describe('newPhotoGuardActive', () => {
+  it('blocks a save right after a photo appears, whichever way it was triggered', () => {
+    expect(newPhotoGuardActive(1000, 900)).toBe(true)
+    expect(newPhotoGuardActive(1000, 1000 - NEW_PHOTO_SAVE_GUARD_MS + 1)).toBe(true)
+  })
+  it('allows a save once the window has passed', () => {
+    expect(newPhotoGuardActive(1000, 1000 - NEW_PHOTO_SAVE_GUARD_MS)).toBe(false)
+    expect(newPhotoGuardActive(5000, 100)).toBe(false)
   })
 })

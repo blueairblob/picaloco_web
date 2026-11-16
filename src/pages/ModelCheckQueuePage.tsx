@@ -19,6 +19,7 @@ import {
   guardAfterSave,
   guardOnShow,
   modelThinksText,
+  newPhotoGuardActive,
   type SaveGuard,
 } from '@/lib/modelCheckView'
 import type { PhotoSize } from '@/lib/photoSize'
@@ -33,8 +34,6 @@ const linkBtn =
 
 const PREFETCH_WHEN_REMAINING = 5
 const PRELOAD_IMAGES = 3
-// A second Enter this soon after a photo appears is a double press, not a look at the new photo.
-const NEW_PHOTO_KEY_GUARD_MS = 300
 
 const MODE_LABEL: Record<CheckMode, string> = {
   sure: 'Sure',
@@ -179,13 +178,13 @@ function CheckQueue({
     setNotice(null)
   }
 
-  const run = (action: CheckAction, fromKey: boolean) => {
+  const run = (action: CheckAction) => {
     switch (action.type) {
       case 'pick':
         pick(action.answerId)
         return
       case 'save':
-        if (fromKey && performance.now() - shownAt.current < NEW_PHOTO_KEY_GUARD_MS) return
+        if (newPhotoGuardActive(performance.now(), shownAt.current)) return
         void save()
         return
       case 'skip':
@@ -221,7 +220,7 @@ function CheckQueue({
     e.preventDefault()
     if (savingRef.current) return
     if (e.repeat && action.type === 'save') return // a held Enter must not save a run of photos
-    runRef.current(action, true)
+    runRef.current(action)
   }, [])
 
   useEffect(() => {
@@ -313,10 +312,10 @@ function CheckQueue({
         saving={saving}
         notice={notice}
         canGoBack={index > 0}
-        onPick={(id) => run({ type: 'pick', answerId: id }, false)}
-        onSave={() => run({ type: 'save' }, false)}
-        onSkip={() => run({ type: 'skip' }, false)}
-        onBack={() => run({ type: 'back' }, false)}
+        onPick={(id) => run({ type: 'pick', answerId: id })}
+        onSave={() => run({ type: 'save' })}
+        onSkip={() => run({ type: 'skip' })}
+        onBack={() => run({ type: 'back' })}
       />
     </>
   )

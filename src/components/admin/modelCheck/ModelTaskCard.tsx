@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { formatAccuracy, serializeCheckParams, type CheckMode } from '@/lib/modelCheckParams'
 import { getConfusion, getConflicts, getRuns, type ModelTask, type RunProgress } from '@/services/modelCheckService'
-import type { DataFix } from '@/services/dataFixService'
+import { STATUS_LABEL } from '@/lib/fixStatusLabel'
+import type { DataFix, FixStatus } from '@/services/dataFixService'
 
 const btn =
   'inline-flex min-h-11 items-center rounded-full border border-[var(--border)] px-5 text-sm font-medium text-[var(--foreground)] no-underline hover:border-[var(--accent)] hover:text-[var(--accent)]'
@@ -141,7 +142,7 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
                 {c.image_no}
               </Link>{' '}
               <span className="text-[var(--muted)]">
-                {label(c.answer)} · {fixTitle(c.fix_id)}: {c.status}
+                {label(c.answer)} · {fixTitle(c.fix_id)}: {STATUS_LABEL[c.status as FixStatus] ?? c.status}
                 {c.values.length > 0 && ` (${c.values.join('; ')})`}
               </span>
             </li>

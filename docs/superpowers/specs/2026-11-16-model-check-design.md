@@ -128,6 +128,8 @@ DDL goes in a new `filemaker_sync/supabase/schema/add_model_check_tables.sql`, i
 - The volunteer is not told which mode a photo came from beyond the queue they chose.
 - Agreement in Sure mode is reported too, but labelled as "agreement on confident answers", not
   accuracy.
+  (decided at build, 2026-11-16) Agreement is reported over each photo's latest answer in any mode,
+  labelled "Agreement" (distinct from "Accuracy (blind sample)").
 - Every saved answer records what was shown, so a later run can be scored against answers given while
   looking at another run's suggestion, and that bias can be accounted for.
 
@@ -152,6 +154,10 @@ Other):
   value (confidence `low`/`med`/`high`) or was already reviewed with a value. The panel says so before
   saving ("Description names 6853 — Loco number not changed") and the photo is listed on the progress
   page as a conflict to look at, linking to its Data Fixes review.
+  (decided at build, 2026-11-16) A photo is listed only while it needs a person: a not-a-loco answer
+  while a listed field is still `extracted` with confidence other than `none`; or a loco answer while a
+  field is saved `no_loco`. A not-a-loco photo whose field was reviewed with a value is consistent (a loco
+  is present, just not the main subject): the panel says "not changed" but the photo is not listed.
 - A field already reviewed by a volunteer is **never changed**, whatever its value.
 - Filling is all or nothing per photo (assistant's call): both fields, or neither.
 
@@ -182,6 +188,9 @@ note and listing apply. Nothing is changed automatically in that direction.
   → / S skip, ← back, as on Data Fixes. Help button lists the keys.
 - A photo already checked shows the saved answer selected and "Checked by … on …"; saving again adds a
   correcting answer.
+  (decided at build, 2026-11-16) Photos already answered are not offered again by the queue, and
+  "Checked by … on …" shows only for photos answered in the current session (reached with Back).
+  Correcting an earlier session's answer is not offered yet.
 - Saves follow Data Fixes' rules: one at a time, a failed save keeps the photo on screen with the error.
 
 ## 9. Constraints
@@ -189,7 +198,10 @@ note and listing apply. Nothing is changed automatically in that direction.
 - Golden Rule 7 holds: reviewed `rat.data_fix_value` rows are never changed by this feature; the link
   only fills `extracted` rows with confidence `none`, through the guarded review path. The only change
   to the Data Fixes tables' definitions is the signed-off `model_check` history source (§4). Run
-  `scripts/data_fix_preservation_check.py` before and after loading a run and after the first live use.
+  `scripts/data_fix_preservation_check.py` before and after the load step only. After live use the
+  checksum will change (each fill adds a reviewed `no_loco` row); verify instead that no model-check fill
+  touched a reviewed value: `select count(*) from rat.data_fix_history where source = 'model_check' and
+  (old_status is distinct from 'extracted' or new_status <> 'no_loco');` must be 0.
 - DDL, grants and RPCs are handed to the user to apply on `oci`.
 - No photo is sent to an outside service; models run on the client's machine.
 - Tests never touch the live DB. Web saves are tested with stubbed RPC routes.

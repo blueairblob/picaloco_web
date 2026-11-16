@@ -5,6 +5,7 @@ import type { Mark } from '@/lib/cardAnswer'
 import { canUseSuggestion, isReviewed, type SaveDecision } from '@/lib/reviewDecision'
 import type { ReviewAction } from '@/lib/reviewKeys'
 import type { QueueEntry } from '@/hooks/useFixQueue'
+import { STATUS_LABEL } from '@/lib/fixStatusLabel'
 import { formatWarnings, normaliseValues, type CompanionValue, type FixStatus } from '@/services/dataFixService'
 import { ZoomImage } from '@/components/admin/fixes/ZoomImage'
 
@@ -14,14 +15,6 @@ export interface CardNotice {
   tone: 'info' | 'error'
   text: string
   onSignIn?: () => void
-}
-
-const STATUS_LABEL: Record<FixStatus, string> = {
-  extracted: 'Not reviewed',
-  verified: 'Verified',
-  corrected: 'Corrected',
-  none_visible: 'Not visible',
-  no_loco: 'No loco',
 }
 
 const CONFIDENCE_LABEL = { none: 'no', low: 'low', med: 'medium', high: 'high' } as const

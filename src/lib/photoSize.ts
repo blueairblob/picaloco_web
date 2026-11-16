@@ -32,3 +32,11 @@ export const REVIEW_PHOTO_HEIGHT: Record<PhotoSize, string> = {
   large: 'h-[clamp(20rem,calc(100dvh-28rem),64rem)]',
   xlarge: 'h-[clamp(26rem,calc(100dvh-14rem),80rem)]',
 }
+
+// The model-check card is shorter than the Data Fixes card (no description or edit boxes), so its
+// photo gets more of the window. Normal fits the whole page with no scrolling.
+export const MODEL_CHECK_PHOTO_HEIGHT: Record<PhotoSize, string> = {
+  normal: 'h-[clamp(14rem,calc(100dvh-28rem),48rem)]',
+  large: 'h-[clamp(20rem,calc(100dvh-20rem),64rem)]',
+  xlarge: 'h-[clamp(26rem,calc(100dvh-12rem),80rem)]',
+}
