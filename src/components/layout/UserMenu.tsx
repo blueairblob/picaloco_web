@@ -137,6 +137,9 @@ export function UserMenu() {
               <Link to="/admin/fixes" role="menuitem" onClick={close} className={item}>
                 Data fixes
               </Link>
+              <Link to="/admin/model-check" role="menuitem" onClick={close} className={item}>
+                Model check
+              </Link>
               <Link to="/admin" role="menuitem" onClick={close} className={item}>
                 Migration status
               </Link>

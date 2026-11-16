@@ -6,6 +6,7 @@ import { PhotoDetailPage } from '@/pages/PhotoDetailPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { DataFixesPage } from '@/pages/DataFixesPage'
 import { FixQueuePage } from '@/pages/FixQueuePage'
+import { ModelCheckPage } from '@/pages/ModelCheckPage'
 import { RequireAdmin } from '@/components/admin/RequireAdmin'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { useTextSize } from '@/hooks/useTextSize'
@@ -27,6 +28,11 @@ export function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/fixes" element={<RequireAdmin><DataFixesPage /></RequireAdmin>} />
         <Route path="/admin/fixes/:fixId" element={<RequireAdmin><FixQueuePage /></RequireAdmin>} />
+        <Route path="/admin/model-check" element={<RequireAdmin><ModelCheckPage /></RequireAdmin>} />
+        <Route
+          path="/admin/model-check/:taskId"
+          element={<RequireAdmin><div className="p-10 text-[var(--muted)]">Check queue coming soon.</div></RequireAdmin>}
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>
