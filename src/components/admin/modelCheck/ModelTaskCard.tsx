@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { formatAccuracy, serializeCheckParams, type CheckMode } from '@/lib/modelCheckParams'
 import { getConfusion, getConflicts, getRuns, type ModelTask, type RunProgress } from '@/services/modelCheckService'
 import { STATUS_LABEL } from '@/lib/fixStatusLabel'
+import { sampleButtonText } from '@/lib/modelCheckProgress'
 import type { DataFix, FixStatus } from '@/services/dataFixService'
 
 const btn =
@@ -124,7 +125,7 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
       <div className="mt-5 flex flex-wrap gap-3">
         {MODES.map(([mode, text]) => (
           <Link key={mode} to={queue(mode)} className={btn}>
-            {text}
+            {mode === 'sample' ? sampleButtonText(stats?.n_blind ?? 0) : text}
           </Link>
         ))}
       </div>

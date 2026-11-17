@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CardNotice } from '@/components/admin/fixes/ReviewCard'
 import { PhotoSizeControl } from '@/components/admin/fixes/PhotoSizeControl'
 import { CheckKeysHelp } from '@/components/admin/modelCheck/CheckKeysHelp'
@@ -10,7 +10,8 @@ import { useModelCheckQueue } from '@/hooks/useModelCheckQueue'
 import { usePhotoSize } from '@/hooks/usePhotoSize'
 import { checkShortcut, type CheckAction } from '@/lib/modelCheckKeys'
 import { linkPreview } from '@/lib/modelCheckLink'
-import { parseCheckParams, serializeCheckParams, type CheckMode, type CheckParams } from '@/lib/modelCheckParams'
+import { formatAccuracy, parseCheckParams, serializeCheckParams, type CheckMode, type CheckParams } from '@/lib/modelCheckParams'
+import { progressFor, queuePositionText, sampleComplete, SAMPLE_TARGET } from '@/lib/modelCheckProgress'
 import {
   canSavePhoto,
   checkedByText,
@@ -26,11 +27,14 @@ import type { PhotoSize } from '@/lib/photoSize'
 import { adminSupabase } from '@/lib/supabase/adminClient'
 import { getFixes, isSignedOutError } from '@/services/dataFixService'
 import { getReviewImageUrl } from '@/services/images'
-import { getRuns, getTasks, saveModelAnswer, type ModelTask } from '@/services/modelCheckService'
+import { getRunProgress, getRuns, getTasks, saveModelAnswer, type ModelTask } from '@/services/modelCheckService'
 
 const box = 'rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-10 text-center text-[var(--muted)]'
 const linkBtn =
   'rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--foreground)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+
+const bigBtn =
+  'inline-flex min-h-11 items-center rounded-full border border-[var(--border)] px-5 text-base font-medium text-[var(--foreground)] no-underline hover:border-[var(--accent)] hover:text-[var(--accent)]'
 
 const PREFETCH_WHEN_REMAINING = 5
 const PRELOAD_IMAGES = 3
@@ -65,6 +69,21 @@ function CheckQueue({
   const savingRef = useRef(false)
   const [notice, setNotice] = useState<CardNotice | null>(null)
   const blind = params.mode === 'sample'
+  const queryClient = useQueryClient()
+
+  // Random sample counts everyone's blind answers towards SAMPLE_TARGET; refetched after each save.
+  const progress = useQuery({ queryKey: ['model-progress'], queryFn: getRunProgress, enabled: blind })
+  const stats = progressFor(progress.data ?? [], task.id, params.run)
+  const blindDone = stats?.n_blind ?? 0
+  // Photos answered in this sitting (sure and unsure show this count).
+  const [sessionSaved, setSessionSaved] = useState<ReadonlySet<string>>(new Set())
+  // At the target the page stops on a finish screen until "Keep going" is pressed.
+  const [keepGoing, setKeepGoing] = useState(false)
+  const finished = blind && progress.isSuccess && sampleComplete(blindDone) && !keepGoing
+  const finishedRef = useRef(finished)
+  useLayoutEffect(() => {
+    finishedRef.current = finished
+  })
 
   const rec = records[index]
   // The answer picked on this card visit; moving to another photo forgets it.
@@ -148,6 +167,8 @@ function CheckQueue({
       })
       if (outcome.ok) {
         savedGuard.current = guardAfterSave(target.image_no)
+        setSessionSaved((s) => new Set(s).add(target.image_no))
+        void queryClient.invalidateQueries({ queryKey: ['model-progress'] })
         patch(target.image_no, {
           done: true,
           checked_answer: answer,
@@ -206,6 +227,7 @@ function CheckQueue({
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return // browser and system shortcuts are never ours
     if (e.isComposing || e.defaultPrevented) return
+    if (finishedRef.current) return // the finish screen has only its own buttons
     if (document.querySelector('dialog[open]')) return // Keys help is open: its keys are its own
     if (document.querySelector('[role="menu"]')) return // the user menu is open
     const el = e.target instanceof HTMLElement ? e.target : null
@@ -270,6 +292,35 @@ function CheckQueue({
     )
   ) : null
 
+  if (finished) {
+    return (
+      <div className={`${box} flex flex-col items-center gap-4 text-base`}>
+        <h2 className="text-2xl font-semibold text-[var(--foreground)]">Sample complete</h2>
+        <p className="text-lg text-[var(--foreground)]">
+          Accuracy {formatAccuracy(stats?.n_blind_correct ?? 0, stats?.n_blind ?? 0)}
+        </p>
+        <p>
+          {SAMPLE_TARGET} blind answers are enough to judge the model. More answers make the figure more precise.
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              shownAt.current = performance.now() // the next photo gets the full new-photo guard
+              setKeepGoing(true)
+            }}
+            className={bigBtn}
+          >
+            Keep going
+          </button>
+          <Link to="/admin/model-check" className={bigBtn}>
+            Back to overview
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   if (!rec) {
     if (queue.hasNextPage || queue.isFetchingNextPage) {
       return <div className={box}>{moreFailed ?? 'Loading more…'}</div>
@@ -291,7 +342,6 @@ function CheckQueue({
     )
   }
 
-  const total = `${records.length}${queue.hasNextPage ? '+' : ''}`
   return (
     <>
       {moreFailed && (
@@ -303,7 +353,7 @@ function CheckQueue({
         key={rec.image_no}
         task={task}
         record={rec}
-        position={`Photo ${index + 1} of ${total}`}
+        position={queuePositionText(params.mode, blindDone, sessionSaved.size)}
         photoSize={photoSize}
         modelThinks={modelThinksText(task, params.mode, rec.model_answer, rec.model_p)}
         picked={picked}
