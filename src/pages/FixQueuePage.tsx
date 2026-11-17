@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { readNavFrom } from '@/lib/navFrom'
 import { useQuery } from '@tanstack/react-query'
 import { BulkConfirmGrid } from '@/components/admin/fixes/BulkConfirmGrid'
 import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
@@ -82,6 +83,7 @@ function ReviewQueue({
 }) {
   const queue = useFixQueue(fix.id, params)
   const { records, patch } = queue
+  const from = readNavFrom(useLocation().state)
   const [index, setIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
@@ -587,8 +589,8 @@ function ReviewQueue({
               <kbd className="font-mono text-xs">←</kbd> Back
             </button>
           )}
-          <Link to="/admin/fixes" className={`${linkBtn} no-underline`}>
-            Back to data fixes
+          <Link to={from?.path ?? '/admin/fixes'} className={`${linkBtn} no-underline`}>
+            {from ? `Back to ${from.label}` : 'Back to data fixes'}
           </Link>
         </div>
       </div>
@@ -640,6 +642,9 @@ function ReviewQueue({
 export function FixQueuePage() {
   const { fixId = '' } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  // Opened from another page (e.g. a Model check conflict): the back link returns there.
+  const from = readNavFrom(location.state)
   const params = useMemo(() => parseQueueParams(searchParams), [searchParams])
   const queueKey = `${fixId}?${serializeQueueParams(params).toString()}`
   const fixes = useQuery({ queryKey: ['data-fixes'], queryFn: getFixes })
@@ -652,7 +657,8 @@ export function FixQueuePage() {
   if (grid && !highOnly) setGrid(false) // filter moved off high-only: forget the grid choice
 
   const changeParams = (p: QueueParams) => {
-    setSearchParams(serializeQueueParams(p), { replace: true })
+    // Keep the history state, so the back link still knows where the page was opened from.
+    setSearchParams(serializeQueueParams(p), { replace: true, state: location.state })
   }
 
   return (
@@ -662,8 +668,8 @@ export function FixQueuePage() {
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">
             {fix?.title ?? 'Data fix review'}
           </h1>
-          <Link to="/admin/fixes" className="text-sm text-[var(--accent)]">
-            ← Data fixes
+          <Link to={from?.path ?? '/admin/fixes'} className="text-sm text-[var(--accent)]">
+            ← {from?.label ?? 'Data fixes'}
           </Link>
         </div>
         {fix && (

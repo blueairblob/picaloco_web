@@ -5,6 +5,7 @@ import { formatAccuracy, serializeCheckParams, type CheckMode } from '@/lib/mode
 import { getConfusion, getConflicts, getRuns, type ModelTask, type RunProgress } from '@/services/modelCheckService'
 import { STATUS_LABEL } from '@/lib/fixStatusLabel'
 import { photoCheckLink } from '@/lib/modelCheckPhoto'
+import { navFromState } from '@/lib/navFrom'
 import { sampleButtonText } from '@/lib/modelCheckProgress'
 import type { DataFix, FixStatus } from '@/services/dataFixService'
 
@@ -145,6 +146,7 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
               <span className="text-[var(--muted)]"> vs </span>
               <Link
                 to={`/admin/fixes/${encodeURIComponent(c.fix_id)}?q=${encodeURIComponent(c.image_no)}&status=extracted,verified,corrected,none_visible,no_loco`}
+                state={navFromState('/admin/model-check', 'Model check')}
                 className="text-[var(--accent)]"
               >
                 {fixTitle(c.fix_id)}: {STATUS_LABEL[c.status as FixStatus] ?? c.status}
