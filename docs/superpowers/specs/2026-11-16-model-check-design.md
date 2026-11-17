@@ -128,7 +128,7 @@ DDL goes in a new `filemaker_sync/supabase/schema/add_model_check_tables.sql`, i
 - The volunteer is not told which mode a photo came from beyond the queue they chose.
 - Agreement in Sure mode is reported too, but labelled as "agreement on confident answers", not
   accuracy.
-  (decided at build, 2026-11-16) Agreement is reported over each photo's latest answer in any mode,
+  (decided at build, 2026-11-16; approved by the user 2026-11-17) Agreement is reported over each photo's latest answer in any mode,
   labelled "Agreement" (distinct from "Accuracy (blind sample)").
 - Every saved answer records what was shown, so a later run can be scored against answers given while
   looking at another run's suggestion, and that bias can be accounted for.
@@ -154,7 +154,7 @@ Other):
   value (confidence `low`/`med`/`high`) or was already reviewed with a value. The panel says so before
   saving ("Description names 6853 — Loco number not changed") and the photo is listed on the progress
   page as a conflict to look at, linking to its Data Fixes review.
-  (decided at build, 2026-11-16) A photo is listed only while it needs a person: a not-a-loco answer
+  (decided at build, 2026-11-16; approved by the user 2026-11-17) A photo is listed only while it needs a person: a not-a-loco answer
   while a listed field is still `extracted` with confidence other than `none`; or a loco answer while a
   field is saved `no_loco`. A not-a-loco photo whose field was reviewed with a value is consistent (a loco
   is present, just not the main subject): the panel says "not changed" but the photo is not listed.
@@ -188,7 +188,7 @@ note and listing apply. Nothing is changed automatically in that direction.
   → / S skip, ← back, as on Data Fixes. Help button lists the keys.
 - A photo already checked shows the saved answer selected and "Checked by … on …"; saving again adds a
   correcting answer.
-  (decided at build, 2026-11-16) Photos already answered are not offered again by the queue, and
+  (decided at build, 2026-11-16; approved by the user 2026-11-17) Photos already answered are not offered again by the queue, and
   "Checked by … on …" shows only for photos answered in the current session (reached with Back).
   Correcting an earlier session's answer is not offered yet.
 - Saves follow Data Fixes' rules: one at a time, a failed save keeps the photo on screen with the error.
