@@ -15,7 +15,7 @@ import { useTextSize } from '@/hooks/useTextSize'
 export function App() {
   const { pathname } = useLocation()
   // The Data Fixes and model check photo pages.
-  const reviewing = pathname.startsWith('/admin/fixes') || pathname.startsWith('/admin/model-check/')
+  const reviewing = pathname.startsWith('/admin/fixes') || pathname.startsWith('/admin/model-check')
   useTextSize() // applies the stored text size on load
   // These pages scale their text with the window (see .scale-text in index.css).
   useEffect(() => {

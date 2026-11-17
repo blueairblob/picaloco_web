@@ -7,7 +7,7 @@ import { STATUS_LABEL } from '@/lib/fixStatusLabel'
 import type { DataFix, FixStatus } from '@/services/dataFixService'
 
 const btn =
-  'inline-flex min-h-11 items-center rounded-full border border-[var(--border)] px-5 text-sm font-medium text-[var(--foreground)] no-underline hover:border-[var(--accent)] hover:text-[var(--accent)]'
+  'inline-flex min-h-11 items-center rounded-full border border-[var(--border)] px-5 text-base font-medium text-[var(--foreground)] no-underline hover:border-[var(--accent)] hover:text-[var(--accent)]'
 const MODES: [CheckMode, string][] = [
   ['sure', 'Sure'],
   ['unsure', 'Unsure'],
@@ -44,16 +44,16 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
-      <h2 className="text-lg font-semibold text-[var(--foreground)]">{task.question}</h2>
+      <h2 className="text-xl font-semibold text-[var(--foreground)]">{task.question}</h2>
 
-      {runs.isError && <p className="mt-3 text-sm text-[var(--muted)]">Could not load the runs.</p>}
+      {runs.isError && <p className="mt-3 text-base text-[var(--muted)]">Could not load the runs.</p>}
       {runs.isSuccess && runs.data.length === 0 && (
-        <p className="mt-3 text-sm text-[var(--muted)]">No model run has been loaded for this question yet.</p>
+        <p className="mt-3 text-base text-[var(--muted)]">No model run has been loaded for this question yet.</p>
       )}
 
       {run && (
         <>
-          <label className="mt-4 block text-sm text-[var(--muted)]">
+          <label className="mt-4 block text-base text-[var(--muted)]">
             Run{' '}
             <select
               value={run.id}
@@ -68,7 +68,7 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
             </select>
           </label>
 
-          <dl className="mt-4 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+          <dl className="mt-4 grid grid-cols-2 gap-4 text-base sm:grid-cols-4">
             <div>
               <dt className="text-[var(--muted)]">Predicted</dt>
               <dd className="text-[var(--foreground)]">{(stats?.n_predictions ?? run.n_predictions).toLocaleString()}</dd>
@@ -91,9 +91,9 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
             </div>
           </dl>
 
-          {confusion.isError && <p className="mt-4 text-sm text-[var(--muted)]">Could not load the confusion table.</p>}
+          {confusion.isError && <p className="mt-4 text-base text-[var(--muted)]">Could not load the confusion table.</p>}
           <div className="mt-4 overflow-x-auto">
-            <table className="text-sm" aria-label="Blind sample: model answer against checked answer">
+            <table className="text-base" aria-label="Blind sample: model answer against checked answer">
               <thead>
                 <tr>
                   <th className="px-3 py-1 text-left font-medium text-[var(--muted)]">Model \ Checked</th>
@@ -129,10 +129,10 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
         ))}
       </div>
 
-      <h3 className="mt-6 text-sm font-medium text-[var(--foreground)]">Conflicts ({conflictRows.length})</h3>
-      {conflicts.isError && <p className="mt-2 text-sm text-[var(--muted)]">Could not load the conflicts.</p>}
+      <h3 className="mt-6 text-base font-medium text-[var(--foreground)]">Conflicts ({conflictRows.length})</h3>
+      {conflicts.isError && <p className="mt-2 text-base text-[var(--muted)]">Could not load the conflicts.</p>}
       {conflictRows.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1 text-sm">
+        <ul className="mt-2 flex flex-col gap-1 text-base">
           {conflictRows.map((c) => (
             <li key={`${c.image_no}:${c.fix_id}`}>
               <Link
