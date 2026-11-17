@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { formatAccuracy, serializeCheckParams, type CheckMode } from '@/lib/modelCheckParams'
 import { getConfusion, getConflicts, getRuns, type ModelTask, type RunProgress } from '@/services/modelCheckService'
 import { STATUS_LABEL } from '@/lib/fixStatusLabel'
+import { photoCheckLink } from '@/lib/modelCheckPhoto'
 import { sampleButtonText } from '@/lib/modelCheckProgress'
 import type { DataFix, FixStatus } from '@/services/dataFixService'
 
@@ -136,16 +137,19 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
         <ul className="mt-2 flex flex-col gap-1 text-base">
           {conflictRows.map((c) => (
             <li key={`${c.image_no}:${c.fix_id}`}>
+              {/* Either side may be the typo: the model-check answer, or the Data Fixes value. */}
+              <span className="font-medium text-[var(--foreground)]">{c.image_no}</span>{' '}
+              <Link to={photoCheckLink(task.id, c.image_no, runId)} className="text-[var(--accent)]">
+                Model check: {label(c.answer)}
+              </Link>
+              <span className="text-[var(--muted)]"> vs </span>
               <Link
                 to={`/admin/fixes/${encodeURIComponent(c.fix_id)}?q=${encodeURIComponent(c.image_no)}&status=extracted,verified,corrected,none_visible,no_loco`}
                 className="text-[var(--accent)]"
               >
-                {c.image_no}
-              </Link>{' '}
-              <span className="text-[var(--muted)]">
-                {label(c.answer)} · {fixTitle(c.fix_id)}: {STATUS_LABEL[c.status as FixStatus] ?? c.status}
+                {fixTitle(c.fix_id)}: {STATUS_LABEL[c.status as FixStatus] ?? c.status}
                 {c.values.length > 0 && ` (${c.values.join('; ')})`}
-              </span>
+              </Link>
             </li>
           ))}
         </ul>

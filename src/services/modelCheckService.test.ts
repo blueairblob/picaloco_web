@@ -11,7 +11,7 @@ vi.mock('@/lib/supabase/adminClient', () => ({
   },
 }))
 
-import { getCheckQueuePage, saveModelAnswer } from './modelCheckService'
+import { getCheckPhoto, getCheckQueuePage, saveModelAnswer } from './modelCheckService'
 
 beforeEach(() => {
   rpc.mockReset()
@@ -36,6 +36,23 @@ describe('getCheckQueuePage', () => {
     rpc.mockResolvedValue({ data: [], error: null })
     await getCheckQueuePage('t', { run: 7, mode: 'sure', answer: 'tram', collection: 'X' }, 'k', 25)
     expect(rpc.mock.calls[0][1]).toMatchObject({ p_mode: 'sure', p_run_id: 7, p_answer: 'tram', p_collection: 'X', p_after: 'k' })
+  })
+})
+
+describe('getCheckPhoto', () => {
+  it('asks for one photo with the run, and returns its row', async () => {
+    const row = { image_no: 'aj011', checked_mode: 'sure', run_id: 3, model_p: 0.95 }
+    rpc.mockResolvedValue({ data: [row], error: null })
+    expect(await getCheckPhoto('subject_type', 'aj011', 3)).toEqual(row)
+    expect(rpc).toHaveBeenCalledWith('model_check_photo', { p_task_id: 'subject_type', p_image_no: 'aj011', p_run_id: 3 })
+  })
+  it('is null when the photo is not in the catalog', async () => {
+    rpc.mockResolvedValue({ data: [], error: null })
+    expect(await getCheckPhoto('t', 'nope', null)).toBeNull()
+  })
+  it('throws the error', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    await expect(getCheckPhoto('t', 'x', null)).rejects.toEqual({ message: 'boom' })
   })
 })
 

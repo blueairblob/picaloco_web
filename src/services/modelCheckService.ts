@@ -82,6 +82,14 @@ export interface CheckRecord {
   fix_state: Record<string, FixStateEntry> | null
 }
 
+// One photo with its latest answer, to answer again (rat.model_check_photo).
+export interface CheckPhoto extends CheckRecord {
+  // How the latest answer was given; null if the photo was never answered.
+  checked_mode: CheckMode | null
+  // The run whose prediction is shown (the one asked for, or the newest).
+  run_id: number | null
+}
+
 export type SaveOutcome =
   | { ok: true; filled: string[]; conflicts: SaveConflict[] }
   | { ok: false; reason: 'forbidden' | 'signed-out' | 'error'; message: string }
@@ -153,6 +161,16 @@ export async function getCheckQueuePage(
   })
   if (error) throw error
   return (data ?? []) as CheckRecord[]
+}
+
+export async function getCheckPhoto(taskId: string, imageNo: string, runId: number | null): Promise<CheckPhoto | null> {
+  const { data, error } = await adminSupabase.rpc('model_check_photo', {
+    p_task_id: taskId,
+    p_image_no: imageNo,
+    p_run_id: runId,
+  })
+  if (error) throw error
+  return ((data ?? []) as CheckPhoto[])[0] ?? null
 }
 
 async function hasSession(): Promise<boolean> {

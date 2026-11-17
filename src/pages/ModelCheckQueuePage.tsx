@@ -11,6 +11,7 @@ import { usePhotoSize } from '@/hooks/usePhotoSize'
 import { checkShortcut, type CheckAction } from '@/lib/modelCheckKeys'
 import { linkPreview } from '@/lib/modelCheckLink'
 import { formatAccuracy, parseCheckParams, serializeCheckParams, type CheckMode, type CheckParams } from '@/lib/modelCheckParams'
+import { parseCheckImage, photoMode } from '@/lib/modelCheckPhoto'
 import { progressFor, queuePositionText, sampleComplete, SAMPLE_TARGET } from '@/lib/modelCheckProgress'
 import {
   canSavePhoto,
@@ -53,42 +54,52 @@ function ownsEnter(el: HTMLElement | null): boolean {
 function CheckQueue({
   task,
   params,
+  image,
   photoSize,
   fixTitles,
 }: {
   task: ModelTask
   params: CheckParams
+  // One photo to answer again (a conflict's link), instead of a queue.
+  image: string | null
   photoSize: PhotoSize
   fixTitles: Record<string, string>
 }) {
-  const queue = useModelCheckQueue(task.id, params)
+  const photoOnly = image !== null
+  const queue = useModelCheckQueue(task.id, params, image)
   const { records, patch } = queue
   const { email } = useAdminSession()
   const [index, setIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const [notice, setNotice] = useState<CardNotice | null>(null)
-  const blind = params.mode === 'sample'
+  const sampleQueue = params.mode === 'sample' && !photoOnly
   const queryClient = useQueryClient()
 
   // Random sample counts everyone's blind answers towards SAMPLE_TARGET; refetched after each save.
-  const progress = useQuery({ queryKey: ['model-progress'], queryFn: getRunProgress, enabled: blind })
+  const progress = useQuery({ queryKey: ['model-progress'], queryFn: getRunProgress, enabled: sampleQueue })
   const stats = progressFor(progress.data ?? [], task.id, params.run)
   const blindDone = stats?.n_blind ?? 0
   // Photos answered in this sitting (sure and unsure show this count).
   const [sessionSaved, setSessionSaved] = useState<ReadonlySet<string>>(new Set())
   // At the target the page stops on a finish screen until "Keep going" is pressed.
   const [keepGoing, setKeepGoing] = useState(false)
-  const finished = blind && progress.isSuccess && sampleComplete(blindDone) && !keepGoing
+  const finished = sampleQueue && progress.isSuccess && sampleComplete(blindDone) && !keepGoing
   const finishedRef = useRef(finished)
   useLayoutEffect(() => {
     finishedRef.current = finished
   })
 
   const rec = records[index]
+  // A single photo is saved the way it was last answered (blind stays blind); a queue by its mode.
+  const mode: CheckMode =
+    photoOnly && rec
+      ? photoMode({ checked_mode: rec.checked_mode ?? null, model_p: rec.model_p }, task.sure_threshold)
+      : params.mode
+  const blind = mode === 'sample'
   // The answer picked on this card visit; moving to another photo forgets it.
   const [pickState, setPickState] = useState<{ imageNo: string; answerId: string } | null>(null)
-  const picked = rec ? (pickState?.imageNo === rec.image_no ? pickState.answerId : defaultPick(task, params.mode, rec)) : null
+  const picked = rec ? (pickState?.imageNo === rec.image_no ? pickState.answerId : defaultPick(task, mode, rec)) : null
 
   // When the current photo appeared, for the double-press guard.
   const shownAt = useRef(0)
@@ -160,9 +171,9 @@ function CheckQueue({
         taskId: task.id,
         imageNo: target.image_no,
         answer,
-        mode: params.mode,
+        mode,
         // The blind sample showed nothing, so it records nothing as shown.
-        shownRunId: blind ? null : params.run,
+        shownRunId: blind ? null : (target.run_id ?? params.run),
         shownAnswer: blind ? null : target.model_answer,
       })
       if (outcome.ok) {
@@ -327,7 +338,9 @@ function CheckQueue({
     }
     return (
       <div className={`${box} flex flex-col items-center gap-4`}>
-        <p className="text-[var(--foreground)]">Nothing left for this filter</p>
+        <p className="text-[var(--foreground)]">
+          {photoOnly ? (records[0]?.done ? 'Saved.' : records.length ? 'Not changed.' : 'Photo not found.') : 'Nothing left for this filter'}
+        </p>
         <div className="flex flex-wrap justify-center gap-2">
           {records.length > 0 && (
             <button type="button" onClick={() => goTo(index - 1)} className={linkBtn}>
@@ -353,9 +366,9 @@ function CheckQueue({
         key={rec.image_no}
         task={task}
         record={rec}
-        position={queuePositionText(params.mode, blindDone, sessionSaved.size)}
+        position={photoOnly ? 'Answer again' : queuePositionText(params.mode, blindDone, sessionSaved.size)}
         photoSize={photoSize}
-        modelThinks={modelThinksText(task, params.mode, rec.model_answer, rec.model_p)}
+        modelThinks={modelThinksText(task, mode, rec.model_answer, rec.model_p)}
         picked={picked}
         notes={picked ? linkPreview(task, picked, rec.fix_state, fixTitles).notes : []}
         checkedBy={rec.checked_at ? checkedByText(rec.checked_by, rec.checked_at) : null}
@@ -375,6 +388,7 @@ export function ModelCheckQueuePage() {
   const { taskId = '' } = useParams()
   const [searchParams] = useSearchParams()
   const params = useMemo(() => parseCheckParams(searchParams), [searchParams])
+  const image = useMemo(() => parseCheckImage(searchParams), [searchParams])
   const [photoSize, setPhotoSize] = usePhotoSize()
 
   const tasks = useQuery({ queryKey: ['model-tasks'], queryFn: getTasks })
@@ -383,21 +397,22 @@ export function ModelCheckQueuePage() {
   const fixTitles = useMemo(() => Object.fromEntries((fixes.data ?? []).map((f) => [f.id, f.title])), [fixes.data])
 
   // Sure and unsure check one run's predictions. With no run in the link, use the newest.
-  const needsRun = params.mode !== 'sample' && params.run === null
+  // A single photo uses the newest run on the server.
+  const needsRun = params.mode !== 'sample' && params.run === null && image === null
   const runs = useQuery({ queryKey: ['model-runs', taskId], queryFn: () => getRuns(taskId), enabled: needsRun && !!task })
   const newestRun = runs.data?.[0]?.id ?? null
   const effective = useMemo<CheckParams | null>(() => {
     if (!needsRun) return params
     return newestRun === null ? null : { ...params, run: newestRun }
   }, [needsRun, params, newestRun])
-  const queueKey = effective ? `${taskId}?${serializeCheckParams(effective).toString()}` : ''
+  const queueKey = effective ? `${taskId}?${serializeCheckParams(effective).toString()}&image=${image ?? ''}` : ''
 
   return (
     <div className="mx-auto flex w-full max-w-[100rem] flex-1 flex-col gap-3 px-4 py-3 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <div className="flex flex-wrap items-baseline gap-x-4">
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-            Model check · {MODE_LABEL[params.mode]}
+            Model check · {image ?? MODE_LABEL[params.mode]}
           </h1>
           <Link to="/admin/model-check" className="text-sm text-[var(--accent)]">
             ← Model check
@@ -420,7 +435,7 @@ export function ModelCheckQueuePage() {
         <div className={box}>No model run has been loaded for this question yet.</div>
       )}
       {task && effective && (
-        <CheckQueue key={queueKey} task={task} params={effective} photoSize={photoSize} fixTitles={fixTitles} />
+        <CheckQueue key={queueKey} task={task} params={effective} image={image} photoSize={photoSize} fixTitles={fixTitles} />
       )}
     </div>
   )
