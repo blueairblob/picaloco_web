@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { answerHelpRows } from '@/lib/modelCheckKeys'
 import type { ModelAnswerDef } from '@/services/modelCheckService'
 
 const btn =
@@ -14,7 +15,7 @@ const KEYS: [string, string][] = [
 // The check page's keys, behind a button so the answer panel can sit beside the photo.
 export function CheckKeysHelp({ answers }: { answers: ModelAnswerDef[] }) {
   const ref = useRef<HTMLDialogElement>(null)
-  const rows: [string, string][] = [...answers.map((a): [string, string] => [a.key, `Pick ${a.label}`]), ...KEYS]
+  const rows = [...answerHelpRows(answers), ...KEYS.map(([key, text]) => ({ key, text, hint: null }))]
   return (
     <>
       <button
@@ -48,12 +49,15 @@ export function CheckKeysHelp({ answers }: { answers: ModelAnswerDef[] }) {
             Nothing is saved before that.
           </p>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-base">
-            {rows.map(([k, what]) => (
-              <div key={k} className="contents">
+            {rows.map(({ key, text, hint }) => (
+              <div key={key} className="contents">
                 <dt>
-                  <kbd className={kbd}>{k}</kbd>
+                  <kbd className={kbd}>{key}</kbd>
                 </dt>
-                <dd>{what}</dd>
+                <dd>
+                  {text}
+                  {hint && <span className="mt-0.5 block text-[var(--muted)]">{hint}</span>}
+                </dd>
               </div>
             ))}
           </dl>

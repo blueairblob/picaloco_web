@@ -29,3 +29,12 @@ export function checkShortcut(
       return null
   }
 }
+
+// Keys help: one row per answer, with the task's optional per-answer guidance (answers[].hint).
+export function answerHelpRows(answers: ModelAnswerDef[]): { key: string; text: string; hint: string | null }[] {
+  return answers.map((a) => ({
+    key: a.key,
+    text: `Pick ${a.label}`,
+    hint: typeof a.hint === 'string' && a.hint.trim() ? a.hint.trim() : null,
+  }))
+}
