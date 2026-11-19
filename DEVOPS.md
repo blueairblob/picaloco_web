@@ -361,15 +361,32 @@ Confirmed 2026-09-07, live (a real reboot was performed as the test, not simulat
     wasteful) tar+gzip of the whole Storage volume to `~/backups/rat/storage/`, keeps the last 4.
     ~550MB per backup.
   - Both wired via `crontab -l` on that host; `cron` itself confirmed enabled+active.
-  - **Known limitation, accepted deliberately**: backups are local to the same disk as the data
-    they protect. This guards against accidental deletion, a bad migration, or human error — **not**
-    against a whole-disk/host failure, which would take the backups down with the data. Revisit
-    (rsync/rclone to a second location, or a cloud object-storage bucket) if/when that risk becomes
-    worth the extra setup.
-  - **⚠ Revisit now (2026-11-14):** this was accepted while everything in `oci` could be rebuilt
-    from FileMaker. The client's Data Fixes reviews (`rat.data_fix_value` rows not `extracted`, and
-    `rat.data_fix_history`, §12) can't be rebuilt, and this same-disk dump is their only copy.
-    Recommended: a nightly off-host copy of just those small tables.
+  - **Off-host copies (2026-11-18/19): the dumps no longer live only on oci's disk.** The DB dumps
+    hold the client's Data Fixes reviews and Model check answers (`rat.data_fix*`,
+    `rat.model_answer`), which can't be rebuilt from FileMaker. Two copies now leave the host,
+    both made by one script on the developer's Windows PC: `ops/rat-backup-pull.sh` in this repo,
+    installed as `~/bin/rat-backup-pull.sh` in WSL.
+    - **PC copy (plain):** rsync over ssh (`huey` alias) into `D:\backups\rat_oci\db`, kept 60
+      days. Each newly fetched file's sha256 is checked against oci's.
+    - **Google Drive copy (encrypted):** the last 30 days are encrypted with gpg (AES-256,
+      symmetric) and mirrored by Windows `robocopy` to `I:\My Drive\RAT backups` (blueairblob's
+      Drive; WSL can't see the Drive mount). Each `.gpg` is decrypted and checked against the
+      dump's sha256 before upload. RAT agreed to Drive storage of the encrypted dumps.
+    - **Passphrase:** `~/.config/rat-backup/passphrase` in WSL (mode 600), with a copy in the
+      developer's KeePass. Without it the Drive copies are unreadable.
+    - **Schedule:** Windows Task Scheduler task "RAT backup pull" runs
+      `wsl.exe -d Ubuntu -u trevour -- /home/trevour/bin/rat-backup-pull.sh` daily at 09:00 and at
+      logon, with "start when available". oci keeps 14 days, so the PC can be off for about 13 days
+      without a gap. Log: `D:\backups\rat_oci\pull.log`; a failed run writes a `FAILED:` or
+      `CHECKSUM MISMATCH` line and exits non-zero.
+    - **Restore a Drive copy:** `gpg --pinentry-mode loopback --passphrase-file
+      ~/.config/rat-backup/passphrase -d rat_backup_<date>.dump.gpg > rat_backup_<date>.dump`, then
+      `pg_restore` as below.
+    - **Verified 2026-11-19:** a file copied back from I: decrypted to exactly the sha256 of oci's
+      dump; a second run redid nothing.
+    - **Not covered:** the weekly Storage tar (images can be re-exported from FileMaker and the
+      local export folder), and the passphrase if both the PC and KeePass are lost (keep the
+      `.kdbx` off this PC too).
   - **Restore**: `docker cp <dump> supabase-db:/tmp/restore.dump && docker exec supabase-db
     pg_restore -U supabase_admin -d postgres --clean --if-exists /tmp/restore.dump` for Postgres;
     `docker cp <tar.gz> supabase-storage:/tmp/restore.tar.gz && docker exec supabase-storage tar
@@ -396,6 +413,16 @@ Confirmed 2026-09-07, live (a real reboot was performed as the test, not simulat
     `filemaker_sync/devlog/worksheet.md`'s Disaster Recovery reference, which self-provisions its
     own extension and needs no such fix). The existing live `postgres` database
     already has both extensions, so an in-place restore onto a host that still exists is unaffected.
+  - **Rehearsed again, 2026-11-18, for the irreplaceable tables.** The nightly dump was copied off
+    oci and restored into a throwaway local `postgres:17` container (oci itself untouched). Every
+    table matched live row for row (md5 of each row) as of the dump time: `model_answer` 553,
+    `data_fix_history` 282,619, 127 reviewed `data_fix_value` rows, `admin_user` 3, `model_task`,
+    the zero-shot run and its 141,111 predictions, `catalog` 141,244. The only differences were 2
+    values reviewed after the dump. **Before `pg_restore` onto a new host, provision:** the
+    `extensions` schema with `uuid-ossp` and `pgcrypto` (above); the roles `anon`, `authenticated`,
+    `service_role` **and `picaloco_agent`** (without it, 21 grants fail, new in this rehearsal); and
+    the admin accounts in `auth.users`, which the dump doesn't contain (§12), or the
+    `admin_user_user_id_fkey` constraint fails.
 - **`config.toml`'s `[export]` path is now fixed** (`filemaker_sync`, 2026-09-07) — previously
   neither a valid Windows nor WSL path. `scripts/paths.py::resolve_export_path()` translates the
   now-correct Windows-native value to its WSL mount-point form automatically; `upload_images_oci.py`
@@ -565,7 +592,7 @@ venv/bin/python scripts/data_fix_preservation_check.py --target-profile oci
 `oci`. The FileMaker rebuild (filemaker_sync's Disaster Recovery chain) plus `--apply` would
 recreate every row as an unreviewed suggestion, so **restore `rat.data_fix*` from the nightly
 dump; never re-extract over it.** The nightly `rat-backup.sh db` dump covers the whole `rat`
-schema (§10), but it sits on the same disk. `rat.admin_user` references `auth.users`, which isn't
+schema (§10) and is copied nightly off the host (PC plus encrypted Google Drive, §10). `rat.admin_user` references `auth.users`, which isn't
 in that dump: on a new host, recreate the admin accounts first, then re-insert `admin_user` by
 email. Restore check, run on huey once a dump containing the tables exists:
 ```bash
