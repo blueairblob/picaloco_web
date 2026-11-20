@@ -74,8 +74,8 @@ Skip this whole section if `oci`'s `rat.mobile_catalog_view` already exists, Fun
 live, and `anon`'s grants are already scoped. Check quickly:
 
 ```bash
-curl -s https://huey.taila2eeb2.ts.net/rest/v1/mobile_catalog_view?select=image_no&limit=1 \
-  -H "apikey: <anon key>"
+curl -s 'https://huey.taila2eeb2.ts.net/rest/v1/mobile_catalog_view?select=image_no&limit=1' \
+  -H "apikey: <anon key>" -H "Accept-Profile: rat"
 ```
 
 A JSON row back means it's already working — move on to §4/§6. If you get a 404/PGRST error or
