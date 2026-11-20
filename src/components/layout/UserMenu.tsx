@@ -4,6 +4,7 @@ import { useTheme, type Theme } from '@/hooks/useTheme'
 import { useTextSize } from '@/hooks/useTextSize'
 import { useAdminSession } from '@/hooks/useAdminSession'
 import type { TextSize } from '@/lib/textSize'
+import { ADMIN_STEPS } from '@/lib/adminWorkflow'
 
 const THEMES: [Theme, string][] = [
   ['system', 'System'],
@@ -134,15 +135,18 @@ export function UserMenu() {
           )}
           {status === 'admin' && (
             <>
-              <Link to="/admin/fixes" role="menuitem" onClick={close} className={item}>
-                Data fixes
-              </Link>
-              <Link to="/admin/model-check" role="menuitem" onClick={close} className={item}>
-                Model check
-              </Link>
-              <Link to="/admin" role="menuitem" onClick={close} className={item}>
-                Migration status
-              </Link>
+              <div className={heading}>Archive workflow</div>
+              {ADMIN_STEPS.map((step, i) => (
+                <Link key={step.path} to={step.path} role="menuitem" onClick={close} className={item}>
+                  <span aria-hidden="true" className="flex size-5 items-center justify-center text-sm text-[var(--muted)]">
+                    {i + 1}
+                  </span>
+                  <span className="flex flex-col py-1 leading-tight">
+                    {step.label}
+                    <span className="text-xs text-[var(--muted)]">{step.hint}</span>
+                  </span>
+                </Link>
+              ))}
             </>
           )}
           {(status === 'admin' || status === 'not-admin') && (

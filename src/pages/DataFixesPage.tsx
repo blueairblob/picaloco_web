@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { AdminSteps } from '@/components/admin/AdminSteps'
 import { useQuery } from '@tanstack/react-query'
 import { FixProgressCard } from '@/components/admin/fixes/FixProgressCard'
 import { getFixes, getOrphans, getProgress, summariseProgress } from '@/services/dataFixService'
@@ -17,13 +17,11 @@ export function DataFixesPage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">Data Fixes</h1>
+        <AdminSteps />
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">Data fixes</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           Review loco numbers and names extracted from photo descriptions.
         </p>
-        <Link to="/admin" className="mt-2 inline-block text-sm text-[var(--accent)]">
-          ← Migration status
-        </Link>
       </div>
 
       {isError && (

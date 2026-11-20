@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { AdminSteps } from '@/components/admin/AdminSteps'
 import { useQuery } from '@tanstack/react-query'
 import { ModelTaskCard } from '@/components/admin/modelCheck/ModelTaskCard'
 import { getFixes } from '@/services/dataFixService'
@@ -17,11 +17,9 @@ export function ModelCheckPage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
       <div>
+        <AdminSteps />
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">Model check</h1>
         <p className="mt-1 text-base text-[var(--muted)]">Check what the model predicted against what the photos show.</p>
-        <Link to="/admin" className="mt-2 inline-block text-base text-[var(--accent)]">
-          ← Migration status
-        </Link>
       </div>
 
       {isError && <div className={box}>Something went wrong talking to the archive. Please try again.</div>}

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { AdminSteps } from '@/components/admin/AdminSteps'
 import { useSyncStatus } from '@/hooks/useSyncStatus'
 import { SyncStatusHeadline } from '@/components/admin/SyncStatusHeadline'
 import { SyncStatusHistory } from '@/components/admin/SyncStatusHistory'
@@ -11,15 +11,13 @@ export function AdminPage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
       <div>
+        <AdminSteps />
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">
           Migration status
         </h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           Freshness of the FileMaker → Postgres sync that keeps this archive up to date.
         </p>
-        <Link to="/admin/fixes" className="mt-2 inline-block text-sm text-[var(--accent)]">
-          Data Fixes →
-        </Link>
       </div>
 
       {isError && (
