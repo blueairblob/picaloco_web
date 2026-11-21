@@ -217,8 +217,10 @@ Copy `.env.example` to `.env.local` and fill in:
 | `VITE_IMAGES_BASE_URL` | Public Storage URL prefix for images | `https://<oci-host>.<tailnet-name>.ts.net/storage/v1/object/public/picaloco/images` — same `oci` instance as `VITE_SUPABASE_URL` now (migrated from a separate cloud project 2026-09-06, see §1) |
 
 None of these are secret in the traditional sense (all three are embedded in the public JS bundle
-of a deployed site) — but keep them in `.env.local` (gitignored) rather than committed, as normal
-hygiene and to make rotation easy.
+of a deployed site). `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are also read at run time by
+`api/health.ts` (the uptime health page), so they must be set for Vercel's Production
+environment, not only at build time. Keep them in `.env.local` (gitignored) rather than committed,
+as normal hygiene and to make rotation easy.
 
 **Two more, genuinely secret this time, for `api/agent-auth.ts`** (§11) — set these directly in
 Vercel, never in a committed `.env*` file, and never with the `VITE_` prefix (that prefix means
@@ -431,9 +433,13 @@ Confirmed 2026-09-07, live (a real reboot was performed as the test, not simulat
   folder it silently would have used before. See `filemaker_sync/devlog/worksheet.md` Session 17.
 
 Still open, lower priority than the above: the S3-protocol default `dev`/`dev` credentials on `oci`
-(flagged repeatedly, still not rotated); no uptime/alerting on the `oci` host itself (Vercel monitors
-the frontend, nothing watches the backend — a silent `oci` outage wouldn't page anyone); no rate
-limiting on the public REST API beyond what Supabase ships with by default.
+(flagged repeatedly, still not rotated); no rate limiting on the public REST API beyond what
+Supabase ships with by default.
+
+**Uptime alerting (2026-11-21):** three free UptimeRobot monitors watch the site, the backend's
+search data (through `GET /api/health`, `api/health.ts`, which sends the `apikey`/`Accept-Profile`
+headers the free plan can't) and one photo, emailing the developer and the head of RAT. Exact
+settings and what each alert means: `docs/ops-manual/uptime-monitors.md`.
 
 ---
 
