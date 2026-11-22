@@ -43,7 +43,11 @@ on Vercel, so if Vercel itself is down monitor 2 goes down with monitor 1.
 |---|---|
 | 1 down (2 usually down too) | The website itself is unreachable. Vercel (the website host) or the internet. |
 | 2 down, 1 and 3 up | Photos load but searches fail. The database part of the server has a problem. |
-| 2 and 3 down | The server is unreachable: switched off, out of space, or the Tailscale link is down. |
+| 2 and 3 down | The server is unreachable: switched off, out of space, or the Tailscale link is down. The most likely cause is an expired Tailscale key (seen 2026-11-22): the developer re-enables it in the Tailscale admin console (DEVOPS.md §3.3 step 5). |
 | Any "up" email | It recovered by itself. Note the time; nothing else to do. |
+
+Monitor 3 already goes through Tailscale Funnel, so 2 and 3 down together is the Tailscale alarm;
+a separate Tailscale monitor would add nothing. UptimeRobot cannot warn before a key expires, so
+key expiry is turned off on the server instead (DEVOPS.md §3.3 step 5).
 
 Short blips (one down then up within 10 minutes) are normal for a free service and need no action.

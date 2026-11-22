@@ -170,6 +170,13 @@ The `oci` host is Tailscale-only by default. To expose its Supabase REST API to 
    ```
    Any real HTTP response (even a `401`) confirms it's genuinely public. A hang/connection
    failure means Funnel isn't actually live yet.
+5. **Turn off key expiry for the `oci` host** (and for the loader PC): Tailscale admin console,
+   Machines, the host's `⋯` menu, **Disable key expiry**. By default a machine's key expires after
+   180 days; the host then drops off the tailnet and Funnel stops, so the whole site loses its
+   data and photos at once. This happened on 2026-11-22 (`tailscale ping huey` answered
+   `peer's node key has expired`). If a key has already expired: disable expiry, and if the host
+   still shows expired, `⋯` then **Temporarily extend key**, then on the host run
+   `sudo tailscale up --force-reauth` and open the link it prints.
 
 **Note:** in this project's Claude Code sessions, both the `REVOKE`/`GRANT` SQL and the
 `tailscale funnel` command get blocked by the coding agent's own safety classifier when attempted
@@ -323,6 +330,7 @@ Notes from experience:
 |---|---|---|
 | Blank page, console error about missing env vars | `.env.local` not set up | Copy `.env.example`, fill in real values, restart `npm run dev` |
 | Search returns nothing, ever | `mobile_catalog_view` missing or `anon` grants revoked entirely | Run the §3 checks/SQL |
+| Search and photos both fail; `/api/health` says `server unreachable` or `no answer within 10000 ms` | `oci` is off the tailnet, most often an expired Tailscale key | `tailscale ping huey`; if it says `node key has expired`, see §3.3 step 5 |
 | Images never load, even for known-good `image_no`s | `VITE_IMAGES_BASE_URL` wrong, or `oci`'s Funnel/Storage is down | Confirm the URL directly with `curl` |
 | A shared/bookmarked `/photo/...` link 404s but `/` works | Missing `vercel.json` rewrite | See §6.2's last note |
 | `vercel env add` hangs or errors on a JWT-looking value | Needs an explicit `--type` | Add `--type config --yes` |
