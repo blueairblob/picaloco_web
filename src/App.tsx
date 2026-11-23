@@ -10,6 +10,7 @@ import { ModelCheckPage } from '@/pages/ModelCheckPage'
 import { ModelCheckQueuePage } from '@/pages/ModelCheckQueuePage'
 import { RequireAdmin } from '@/components/admin/RequireAdmin'
 import { ComingSoon } from '@/components/admin/ComingSoon'
+import { VolunteersPage } from '@/pages/VolunteersPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { useTextSize } from '@/hooks/useTextSize'
 
@@ -29,7 +30,7 @@ export function App() {
         <Route path="/" element={<SearchPage />} />
         <Route path="/photo/:imageNo" element={<PhotoDetailPage />} />
         <Route path="/admin" element={<AdminPage />} />
-        <Route path="/admin/volunteers" element={<RequireAdmin><ComingSoon title="Volunteers" /></RequireAdmin>} />
+        <Route path="/admin/volunteers" element={<RequireAdmin><VolunteersPage /></RequireAdmin>} />
         <Route path="/admin/approvals" element={<RequireAdmin><ComingSoon title="Approvals" /></RequireAdmin>} />
         <Route path="/admin/changes" element={<RequireAdmin><ComingSoon title="Changes" /></RequireAdmin>} />
         <Route path="/admin/fixes" element={<RequireAdmin allowVolunteers><DataFixesPage /></RequireAdmin>} />
