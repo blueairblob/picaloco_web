@@ -1,15 +1,18 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAdminSession } from '@/hooks/useAdminSession'
 import { myHeld } from '@/services/approvalService'
+import { recentRejected } from '@/lib/heldFilter'
 
 // For a trainee only: how many saves wait for approval, and the ones an admin sent back.
 export function HeldPanel() {
   const { status, inTraining } = useAdminSession()
   const trainee = status === 'volunteer' && inTraining
+  const [now] = useState(() => Date.now())
   const held = useQuery({ queryKey: ['my-held'], queryFn: myHeld, enabled: trainee })
   if (!trainee || !held.data) return null
   const waiting = held.data.filter((h) => h.decision === 'pending').length
-  const sentBack = held.data.filter((h) => h.decision === 'rejected')
+  const sentBack = recentRejected(held.data, now)
   if (waiting === 0 && sentBack.length === 0) return null
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 text-sm text-[var(--foreground)]">

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AdminSteps } from '@/components/admin/AdminSteps'
 import {
@@ -27,16 +27,19 @@ export function VolunteersPage() {
   const [error, setError] = useState<string | null>(null)
   const [shown, setShown] = useState<Shown | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
 
-  // The one-time password lives only in this component's state, so leaving the page clears it.
-  useEffect(() => () => setShown(null), [])
+  // The one-time password lives only in this component's state, so unmounting (leaving the page)
+  // discards it; no cleanup effect is needed. "Done" and any other action also clear it.
 
   function handleResult(r: PasswordResult, fallbackEmail: string) {
     if (r.ok) {
       setShown({ email: r.email || fallbackEmail, password: r.tempPassword })
       setCopied(false)
+      setCopyFailed(false)
       setError(null)
     } else {
+      setShown(null)
       setError(r.message)
     }
   }
@@ -49,6 +52,7 @@ export function VolunteersPage() {
     e.preventDefault()
     const value = email.trim()
     if (!value) return
+    setShown(null)
     setBusy(true)
     const r = await addVolunteer(value)
     handleResult(r, value)
@@ -60,12 +64,14 @@ export function VolunteersPage() {
   }
 
   async function onReset(userId: string, rowEmail: string) {
+    setShown(null)
     setBusy(true)
     handleResult(await resetPassword(userId), rowEmail)
     setBusy(false)
   }
 
   async function run(fn: () => Promise<void>) {
+    setShown(null)
     setBusy(true)
     try {
       await fn()
@@ -92,8 +98,10 @@ export function VolunteersPage() {
     try {
       await navigator.clipboard.writeText(shown.password)
       setCopied(true)
+      setCopyFailed(false)
     } catch {
       setCopied(false)
+      setCopyFailed(true)
     }
   }
 
@@ -141,7 +149,15 @@ export function VolunteersPage() {
             <button type="button" onClick={copy} className={btn}>
               {copied ? 'Copied' : 'Copy'}
             </button>
+            <button type="button" onClick={() => setShown(null)} className={btn}>
+              Done
+            </button>
           </div>
+          {copyFailed && (
+            <p role="alert" className="text-sm text-[var(--foreground)]">
+              Copy failed — select and copy it by hand.
+            </p>
+          )}
           <p className="text-sm text-[var(--muted)]">
             Give this to the volunteer in person or by phone. It won't be shown again.
           </p>

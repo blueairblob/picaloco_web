@@ -61,3 +61,9 @@ export function bulkUndoRows(rows: ChangeRow[], kinds: string[] | undefined): Ch
   const undoOnly = kinds?.length === 1 && kinds[0] === 'fix_undo'
   return rows.filter((r) => describeChange(r).canUndo && (undoOnly || r.kind !== 'fix_undo'))
 }
+
+// How many undoable undo rows "Undo all" leaves out (see bulkUndoRows).
+export function excludedUndoCount(rows: ChangeRow[], kinds: string[] | undefined): number {
+  const undoOnly = kinds?.length === 1 && kinds[0] === 'fix_undo'
+  return undoOnly ? 0 : rows.filter((r) => r.kind === 'fix_undo' && describeChange(r).canUndo).length
+}

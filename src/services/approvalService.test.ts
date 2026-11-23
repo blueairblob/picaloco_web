@@ -46,6 +46,20 @@ describe('decisions', () => {
     expect(rpc).toHaveBeenCalledWith('approve_fix_review', { p_ids: [1], p_force: true })
   })
 
+  it('approve(fix, force, seen) passes p_seen_updated_at untouched', async () => {
+    rpc.mockResolvedValue({ data: { approved: 1 }, error: null })
+    await approve('fix', [1], true, '2026-11-23T10:00:00.123456+00:00')
+    expect(rpc).toHaveBeenCalledWith('approve_fix_review', {
+      p_ids: [1], p_force: true, p_seen_updated_at: '2026-11-23T10:00:00.123456+00:00',
+    })
+  })
+
+  it('ignores seenUpdatedAt when not forcing', async () => {
+    rpc.mockResolvedValue({ data: { approved: 1 }, error: null })
+    await approve('fix', [1], false, 'x')
+    expect(rpc).toHaveBeenCalledWith('approve_fix_review', { p_ids: [1], p_force: false })
+  })
+
   it('approve(answer) calls approve_model_answer', async () => {
     rpc.mockResolvedValue({ data: { approved: 1, skipped: [{ id: '9', reason: 'withdrawn' }] }, error: null })
     const r = await approve('answer', [8, 9])
@@ -99,6 +113,7 @@ describe('listHeld', () => {
     expect(rpc).toHaveBeenCalledWith('held_list', { p_user: 'u1' })
     expect(r[0].id).toBe(5)
     expect(r[0].description).toBeNull()
+    expect(r[0].current_updated_at).toBeNull()
   })
 
   it('passes null with no user', async () => {

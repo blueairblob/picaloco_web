@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AdminSteps } from '@/components/admin/AdminSteps'
 import { approve, listHeld, reject, summaryLine, type DecisionResult, type HeldItem } from '@/services/approvalService'
 import { listPeople } from '@/services/volunteerService'
+import { clearNoteIfSent, removeKeys } from '@/lib/approvalSelection'
+import { personLabel } from '@/lib/personLabel'
 import { getThumbnailUrl } from '@/services/images'
 import { STATUS_LABEL } from '@/lib/fixStatusLabel'
 import type { FixStatus } from '@/services/dataFixService'
@@ -50,7 +52,7 @@ export function ApprovalsPage() {
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
 
-  const emailOf = (id: string) => people.data?.find((p) => p.user_id === id)?.email ?? 'Unknown volunteer'
+  const emailOf = (id: string) => personLabel(people.data, id, 'Unknown volunteer', people.isError)
 
   const groups = useMemo(() => {
     const m = new Map<string, HeldItem[]>()
@@ -59,41 +61,58 @@ export function ApprovalsPage() {
   }, [held.data])
   const all = held.data ?? []
 
+  // Runs one batch per kind. Each kind that succeeds is reported to onKindDone straight away, so a
+  // later kind throwing still leaves the earlier one cleared from the selection (and notes).
   async function act(
     items: HeldItem[],
     verb: 'approved' | 'rejected',
     run: (kind: 'fix' | 'answer', ids: number[]) => Promise<DecisionResult>,
+    onKindDone?: () => void,
   ): Promise<boolean> {
     if (items.length === 0) return false
     setBusy(true)
     let ok = false
+    const total: DecisionResult = { done: 0, stale: [], skipped: [] }
+    let anyDone = false
     try {
-      const total: DecisionResult = { done: 0, stale: [], skipped: [] }
       for (const kind of ['fix', 'answer'] as const) {
-        const ids = items.filter((i) => i.kind === kind).map((i) => i.id)
-        if (ids.length === 0) continue
-        const r = await run(kind, ids)
+        const batch = items.filter((i) => i.kind === kind)
+        if (batch.length === 0) continue
+        const r = await run(kind, batch.map((i) => i.id))
+        anyDone = true
         total.done += r.done
         total.stale.push(...r.stale)
         total.skipped.push(...r.skipped)
+        setSelected((s) => removeKeys(s, batch.map(keyOf)))
+        onKindDone?.()
       }
       setSummary(summaryLine(total, verb))
       setError(null)
-      setSelected(new Set())
       ok = true
     } catch {
+      setSummary(anyDone ? `${summaryLine(total, verb)} before it stopped` : null)
       setError('Something went wrong. Try again.')
     }
+    // Refetch before re-enabling, so rows already done are gone before any retry.
     await Promise.all([qc.invalidateQueries({ queryKey: ['held'] }), qc.invalidateQueries({ queryKey: ['people'] })])
     setBusy(false)
     return ok
   }
 
-  const doApprove = (items: HeldItem[], force = false) => act(items, 'approved', (k, ids) => approve(k, ids, force))
-  // The note is sent once: it is cleared after a successful reject so it can't ride along on the next one.
+  const doApprove = (items: HeldItem[], force = false) =>
+    act(items, 'approved', (k, ids) =>
+      approve(k, ids, force, force ? items.find((i) => i.kind === k)?.current_updated_at : undefined),
+    )
+  // The note is sent once: it is cleared once its batch went through, but only if it is still the text
+  // that was sent, so anything typed during the request survives.
   async function doReject(items: HeldItem[], userId: string) {
-    const ok = await act(items, 'rejected', (k, ids) => reject(k, ids, notes[userId]?.trim() || undefined))
-    if (ok) setNotes((n) => ({ ...n, [userId]: '' }))
+    const sent = notes[userId]
+    await act(
+      items,
+      'rejected',
+      (k, ids) => reject(k, ids, sent?.trim() || undefined),
+      () => setNotes((n) => ({ ...n, [userId]: clearNoteIfSent(n[userId], sent) })),
+    )
   }
 
   function toggle(i: HeldItem) {
@@ -191,7 +210,7 @@ export function ApprovalsPage() {
                     </p>
                     {i.description && <p className="text-sm text-[var(--muted)]">{i.description}</p>}
                     <Change item={i} />
-                    {i.stale && (
+                    {i.stale && i.kind === 'fix' && (
                       <p className="text-sm text-[var(--foreground)]">Changed since: now {fixText(i.current)}</p>
                     )}
                     <div className="mt-1 flex flex-wrap gap-2">

@@ -15,15 +15,20 @@ export interface BatchResult {
 export interface BatchTotals {
   done: number
   changedSince: number
+  notUndoneHere: number
   skipped: number
 }
 
 export function sumBatchResults(rs: BatchResult[]): BatchTotals {
-  const t: BatchTotals = { done: 0, changedSince: 0, skipped: 0 }
+  const t: BatchTotals = { done: 0, changedSince: 0, notUndoneHere: 0, skipped: 0 }
   for (const r of rs) {
     t.done += (r.undone ?? 0) + (r.withdrawn ?? 0)
-    t.changedSince += (r.changed_since?.length ?? 0) + (r.fills_left?.length ?? 0)
+    t.changedSince += r.changed_since?.length ?? 0
+    t.notUndoneHere += r.fills_left?.length ?? 0
     t.skipped += r.skipped?.length ?? 0
   }
   return t
 }
+
+export const batchSummaryText = (t: BatchTotals) =>
+  `${t.done} undone, ${t.changedSince} changed since, ${t.notUndoneHere} not undone here, ${t.skipped} skipped`

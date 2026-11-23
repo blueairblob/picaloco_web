@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { passwordError } from '@/lib/passwordRules'
 import { adminSupabase } from '@/lib/supabase/adminClient'
 
 const inputClass =
@@ -14,7 +15,8 @@ export function ChoosePasswordForm({ onDone }: { onDone: () => void }) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    if (password.length < 8) return setError('Use at least 8 characters.')
+    const pwError = passwordError(password)
+    if (pwError) return setError(pwError)
     if (password !== confirm) return setError("The two passwords don't match.")
     setSubmitting(true)
     try {

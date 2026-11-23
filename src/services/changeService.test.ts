@@ -41,20 +41,20 @@ describe('undoRows', () => {
     expect(rpc.mock.calls.map((c) => [c[0], c[1].p_history_ids.length])).toEqual([
       ['undo_fix_change', 500], ['undo_fix_change', 500], ['undo_fix_change', 201],
     ])
-    expect(r).toEqual({ done: 3, changedSince: 0, skipped: 0 })
+    expect(r).toEqual({ done: 3, changedSince: 0, notUndoneHere: 0, skipped: 0 })
   })
   it('routes answers to withdraw and never sends held rows', async () => {
     rpc.mockResolvedValue({ data: { withdrawn: 2, fills_left: [{}], skipped: [] }, error: null })
     const r = await undoRows([row(1, 'model_answer'), row(2, 'model_answer'), row(3, 'pending_fix_review')])
     expect(rpc).toHaveBeenCalledTimes(1)
     expect(rpc).toHaveBeenCalledWith('withdraw_model_answers', { p_answer_ids: [1, 2], p_note: null })
-    expect(r).toEqual({ done: 2, changedSince: 1, skipped: 0 })
+    expect(r).toEqual({ done: 2, changedSince: 0, notUndoneHere: 1, skipped: 0 })
   })
   it('stops on a failed chunk and reports partial totals', async () => {
     rpc.mockResolvedValueOnce({ data: { undone: 500, changed_since: [], skipped: [] }, error: null })
     rpc.mockResolvedValueOnce({ data: null, error: new Error('boom') })
     const rows = Array.from({ length: 1001 }, (_, i) => row(i, 'data_fix_history'))
-    await expect(undoRows(rows)).rejects.toMatchObject({ partial: { done: 500, changedSince: 0, skipped: 0 } })
+    await expect(undoRows(rows)).rejects.toMatchObject({ partial: { done: 500, changedSince: 0, notUndoneHere: 0, skipped: 0 } })
     expect(rpc).toHaveBeenCalledTimes(2)
   })
 })

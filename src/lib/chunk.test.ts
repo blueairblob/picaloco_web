@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chunk, sumBatchResults } from './chunk'
+import { batchSummaryText, chunk, sumBatchResults } from './chunk'
 
 describe('chunk', () => {
   it('throws for size < 1', () => expect(() => chunk([1], 0)).toThrow())
@@ -17,6 +17,11 @@ describe('sumBatchResults', () => {
         { withdrawn: 2, fills_left: [1, 2], skipped: [{}, {}] },
         {},
       ]),
-    ).toEqual({ done: 5, changedSince: 3, skipped: 3 })
+    ).toEqual({ done: 5, changedSince: 1, notUndoneHere: 2, skipped: 3 })
+  })
+  it('words the summary', () => {
+    expect(batchSummaryText({ done: 5, changedSince: 1, notUndoneHere: 2, skipped: 3 })).toBe(
+      '5 undone, 1 changed since, 2 not undone here, 3 skipped',
+    )
   })
 })

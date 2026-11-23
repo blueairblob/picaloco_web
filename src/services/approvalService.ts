@@ -38,6 +38,8 @@ export interface HeldItem {
   proposed: Record<string, unknown> | null
   current: Record<string, unknown> | null
   stale: boolean
+  // Live updated_at of the fix value (server string, untouched); null for answers.
+  current_updated_at: string | null
 }
 
 export type DecisionResult = {
@@ -57,6 +59,7 @@ export async function listHeld(userId?: string): Promise<HeldItem[]> {
     proposed: r.proposed ?? null,
     current: r.current ?? null,
     stale: Boolean(r.stale),
+    current_updated_at: r.current_updated_at ?? null,
   }))
 }
 
@@ -79,10 +82,19 @@ function toResult(raw: RawResult): DecisionResult {
   }
 }
 
-export async function approve(kind: 'fix' | 'answer', ids: number[], force = false): Promise<DecisionResult> {
+export async function approve(
+  kind: 'fix' | 'answer',
+  ids: number[],
+  force = false,
+  seenUpdatedAt?: string | null,
+): Promise<DecisionResult> {
   const { data, error } =
     kind === 'fix'
-      ? await adminSupabase.rpc('approve_fix_review', { p_ids: ids, p_force: force })
+      ? await adminSupabase.rpc('approve_fix_review', {
+          p_ids: ids,
+          p_force: force,
+          ...(force && seenUpdatedAt ? { p_seen_updated_at: seenUpdatedAt } : {}),
+        })
       : await adminSupabase.rpc('approve_model_answer', { p_ids: ids })
   if (error) throw error
   return toResult(data as RawResult)

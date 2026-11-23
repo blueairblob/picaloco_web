@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bulkUndoRows, describeChange, type ChangeRow } from './changeRow'
+import { bulkUndoRows, describeChange, excludedUndoCount, type ChangeRow } from './changeRow'
 
 const base: ChangeRow = {
   cursor: 'c', kind: 'fix_review', at: '2026-11-20T10:00:00Z', by_user: 'u', approved_by: null,
@@ -80,4 +80,12 @@ describe('bulkUndoRows', () => {
   it('keeps single-row undo of an undo row available', () => {
     expect(describeChange(u).canUndo).toBe(true)
   })
+})
+
+describe('excludedUndoCount', () => {
+  const u = { ...base, kind: 'fix_undo', ref_id: 2 }
+  it('counts undoable undo rows left out', () => {
+    expect(excludedUndoCount([base, u, { ...u, undone: true }], undefined)).toBe(1)
+  })
+  it('is 0 when filtering to undos only', () => expect(excludedUndoCount([u], ['fix_undo'])).toBe(0))
 })
