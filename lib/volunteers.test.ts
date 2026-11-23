@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { handleVolunteers, TEMP_PASSWORD_ALPHABET } from './volunteers.js'
+import { handleVolunteers, makeTempPassword, TEMP_PASSWORD_ALPHABET, TEMP_PASSWORD_LENGTH } from './volunteers.js'
 
 const URL_ = 'https://server.example'
 const ANON = 'anon-key-xyz'
@@ -144,6 +144,42 @@ describe('handleVolunteers', () => {
     expect(calls.some((c) => c.method === 'DELETE' && c.url === `/auth/v1/admin/users/${NEW_ID}`)).toBe(true)
   })
 
+  it('create says so when the rollback delete fails too', async () => {
+    const { result, calls } = await run(
+      base({
+        [rpc('account_status')]: status('none', null),
+        'POST /auth/v1/admin/users': { status: 200, body: { id: NEW_ID } },
+        [rpc('add_volunteer')]: { status: 500, body: { message: 'boom' } },
+        [`DELETE /auth/v1/admin/users/${NEW_ID}`]: { status: 500, body: { message: SERVICE } },
+      }),
+      { action: 'create', email: 'bob@example.org' },
+    )
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(true)
+    expect(result).toEqual({
+      status: 502,
+      body: { error: 'could not make them a volunteer, and the new account could not be undone: ask the developer' },
+    })
+    const s = JSON.stringify(result)
+    expect(s).not.toContain(SERVICE)
+    expect(s).not.toContain(ANON)
+    expect(s).not.toContain('caller-token')
+  })
+
+  it('create re-activation does not delete the account when the role grant fails', async () => {
+    const { result, calls } = await run(
+      base({
+        [rpc('account_status')]: status('removed_volunteer'),
+        [`PUT /auth/v1/admin/users/${UID}`]: { status: 200, body: {} },
+        [rpc('add_volunteer')]: { status: 500, body: {} },
+      }),
+      { action: 'create', email: 'bob@example.org' },
+    )
+    expect(result.status).toBe(502)
+    expect(result.body).not.toHaveProperty('temp_password')
+    expect(calls.some((c) => c.method === 'PUT')).toBe(true)
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+  })
+
   it('is 502 when the account cannot be created', async () => {
     const { result } = await run(
       base({ [rpc('account_status')]: status('none', null), 'POST /auth/v1/admin/users': { status: 500, body: {} } }),
@@ -172,6 +208,49 @@ describe('handleVolunteers', () => {
     expect(ok.calls.find((c) => c.url.endsWith('/require_password_change'))!.body).toEqual({ p_user_id: UID })
   })
 
+  it('reset flags the change before setting the password', async () => {
+    const { calls } = await run(
+      base({
+        [rpc('account_status')]: status('volunteer'),
+        [`PUT /auth/v1/admin/users/${UID}`]: { status: 200, body: {} },
+        [rpc('require_password_change')]: { status: 200, body: null },
+      }),
+      { action: 'reset', user_id: UID },
+    )
+    const flagAt = calls.findIndex((c) => c.url.endsWith('/require_password_change'))
+    const putAt = calls.findIndex((c) => c.method === 'PUT')
+    expect(flagAt).toBeGreaterThanOrEqual(0)
+    expect(flagAt).toBeLessThan(putAt)
+  })
+
+  it('reset changes nothing when the flag cannot be set', async () => {
+    const { result, calls } = await run(
+      base({
+        [rpc('account_status')]: status('volunteer'),
+        [`PUT /auth/v1/admin/users/${UID}`]: { status: 200, body: {} },
+        [rpc('require_password_change')]: { status: 500, body: {} },
+      }),
+      { action: 'reset', user_id: UID },
+    )
+    expect(result).toEqual({ status: 502, body: { error: 'could not reset the password; nothing was changed' } })
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+  })
+
+  it('reset says the old password still works when setting the new one fails', async () => {
+    const { result } = await run(
+      base({
+        [rpc('account_status')]: status('volunteer'),
+        [`PUT /auth/v1/admin/users/${UID}`]: { status: 500, body: {} },
+        [rpc('require_password_change')]: { status: 200, body: null },
+      }),
+      { action: 'reset', user_id: UID },
+    )
+    expect(result).toEqual({
+      status: 502,
+      body: { error: 'could not set the new password; their old password still works and they will be asked to change it' },
+    })
+  })
+
   it('set_password changes only the caller', async () => {
     const { result, calls } = await run(
       {
@@ -192,6 +271,20 @@ describe('handleVolunteers', () => {
     expect((await run({}, { action: 'set_password', password: 'short' })).result.status).toBe(400)
     const bad = await run({ 'GET /auth/v1/user': { status: 401, body: {} } }, { action: 'set_password', password: 'long-enough-pw' })
     expect(bad.result.status).toBe(401)
+  })
+
+  it('set_password rejects passwords over 72 UTF-8 bytes (the bcrypt limit)', async () => {
+    const ok = {
+      'GET /auth/v1/user': { status: 200, body: { id: UID } },
+      [rpc('my_role')]: { status: 200, body: { role: 'volunteer', must_change_password: true } },
+      [`PUT /auth/v1/admin/users/${UID}`]: { status: 200, body: {} },
+    }
+    expect((await run(ok, { action: 'set_password', password: 'a'.repeat(72) })).result.status).toBe(200)
+    for (const password of ['a'.repeat(73), 'é'.repeat(37)]) {
+      const { result, calls } = await run(ok, { action: 'set_password', password })
+      expect(result).toEqual({ status: 400, body: { error: 'password is too long: 72 characters at most (fewer with accented letters)' } })
+      expect(calls).toEqual([])
+    }
   })
 
   it('set_password is refused unless a volunteer must change it', async () => {
@@ -229,5 +322,30 @@ describe('handleVolunteers', () => {
       expect(s).not.toContain(ANON)
       expect(s).not.toContain('caller-token')
     }
+  })
+})
+
+describe('makeTempPassword', () => {
+  it('skips bytes at or above 224 and builds the password from the accepted bytes in order', () => {
+    expect(TEMP_PASSWORD_ALPHABET).toHaveLength(56) // 4 * 56 = 224
+    const batches = [
+      [224, 0, 255, 1, 230, 55, 56, 223],
+      [240, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    ]
+    const asked: number[] = []
+    const random = (n: number) => {
+      asked.push(n)
+      return Uint8Array.from(batches.shift() ?? [])
+    }
+    const pw = makeTempPassword(random)
+    const accepted = [0, 1, 55, 56, 223, 2, 3, 4, 5, 6, 7, 8]
+    expect(pw).toBe(accepted.map((b) => TEMP_PASSWORD_ALPHABET[b % 56]).join(''))
+    expect(pw).toHaveLength(TEMP_PASSWORD_LENGTH)
+    expect(asked).toHaveLength(2) // the first batch had too few accepted bytes
+  })
+
+  it('never uses a byte of 224 or more', () => {
+    const random = (n: number) => Uint8Array.from({ length: n }, (_, i) => (i % 2 ? 224 + (i % 32) : 5))
+    expect(makeTempPassword(random)).toBe(TEMP_PASSWORD_ALPHABET[5].repeat(TEMP_PASSWORD_LENGTH))
   })
 })

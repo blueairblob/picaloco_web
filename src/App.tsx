@@ -9,6 +9,7 @@ import { FixQueuePage } from '@/pages/FixQueuePage'
 import { ModelCheckPage } from '@/pages/ModelCheckPage'
 import { ModelCheckQueuePage } from '@/pages/ModelCheckQueuePage'
 import { RequireAdmin } from '@/components/admin/RequireAdmin'
+import { AdminSessionProvider } from '@/components/admin/AdminSessionProvider'
 import { ApprovalsPage } from '@/pages/ApprovalsPage'
 import { ChangesPage } from '@/pages/ChangesPage'
 import { VolunteersPage } from '@/pages/VolunteersPage'
@@ -24,8 +25,9 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('scale-text', reviewing)
   }, [reviewing])
+  // One shared sign-in session and role for the header menu, the guards and every page.
   return (
-    <>
+    <AdminSessionProvider>
       <Header />
       <Routes>
         <Route path="/" element={<SearchPage />} />
@@ -40,6 +42,6 @@ export function App() {
         <Route path="/admin/model-check/:taskId" element={<RequireAdmin allowVolunteers><ModelCheckQueuePage /></RequireAdmin>} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-    </>
+    </AdminSessionProvider>
   )
 }

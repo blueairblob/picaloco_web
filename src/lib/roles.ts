@@ -23,6 +23,15 @@ export function roleStatusFrom(hasSession: boolean, myRole: MyRole | null | unde
   return myRole.role
 }
 
+// A my_role answer, tagged with the user it was fetched for.
+export type RoleCheck = { userId: string; role: MyRole | null }
+
+// The my_role answer for this user, or undefined while it isn't in: an answer fetched for an
+// earlier user is never reused.
+export function roleFor(check: RoleCheck | null, userId: string | null | undefined): MyRole | null | undefined {
+  return userId && check && check.userId === userId ? check.role : undefined
+}
+
 // The Model check overview's confusion table and conflicts come from
 // admin-only RPCs: load and show them for admins only.
 export function showAdminAnalysis(status: RoleStatus): boolean {

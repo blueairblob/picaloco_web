@@ -25,16 +25,22 @@ describe('describeChange', () => {
   it('answer with AI shown', () => {
     const d = describeChange({
       ...base, kind: 'answer', subject: 'Is this a tram?', ref_table: 'model_answer',
-      before: { shown_answer: 'yes' }, after: { answer: 'no', mode: 'assisted' },
+      before: { shown_answer: 'yes' }, after: { answer: 'no', mode: 'sure' },
     })
     expect(d.what).toBe('Model check answer — Is this a tram?')
     expect(d.before).toBe('AI said: yes')
-    expect(d.after).toBe('no (assisted)')
+    expect(d.after).toBe('no (sure)')
     expect(d.canUndo).toBe(true)
   })
-  it('answer blind', () => {
-    const d = describeChange({ ...base, kind: 'answer', ref_table: 'model_answer', before: { shown_answer: null }, after: { answer: 'no', mode: 'blind' } })
+  it('answer in the unsure queue', () => {
+    const d = describeChange({ ...base, kind: 'answer', ref_table: 'model_answer', before: { shown_answer: 'tram' }, after: { answer: 'no', mode: 'unsure' } })
+    expect(d.before).toBe('AI said: tram')
+    expect(d.after).toBe('no (unsure)')
+  })
+  it('answer in the random sample (blind: nothing shown)', () => {
+    const d = describeChange({ ...base, kind: 'answer', ref_table: 'model_answer', before: { shown_answer: null }, after: { answer: 'no', mode: 'sample' } })
     expect(d.before).toBe('blind sample')
+    expect(d.after).toBe('no (sample)')
   })
   it('answer_withdrawn', () => {
     const d = describeChange({ ...base, kind: 'answer_withdrawn', ref_table: 'model_answer_withdrawal', after: { note: 'oops' } })

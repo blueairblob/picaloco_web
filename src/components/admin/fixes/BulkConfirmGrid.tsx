@@ -10,6 +10,7 @@ import {
   type QueueRecord,
 } from '@/services/dataFixService'
 import { useAdminSession } from '@/hooks/useAdminSession'
+import { roleChangedMessage } from '@/lib/roleChange'
 import { adminSupabase } from '@/lib/supabase/adminClient'
 import { getReviewImageUrl } from '@/services/images'
 import { GRID_COLUMNS, TILE_LABEL, type PhotoSize } from '@/lib/photoSize'
@@ -30,13 +31,14 @@ interface Props {
 
 export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
   const queryClient = useQueryClient()
-  const { status: sessionStatus, inTraining } = useAdminSession()
+  const { status: sessionStatus, inTraining, refreshRole } = useAdminSession()
   const trainee = sessionStatus === 'volunteer' && inTraining
   const [after, setAfter] = useState<string | null>(null)
   const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [result, setResult] = useState<{ done: number; of: number } | null>(null)
-  const [error, setError] = useState<{ message: string; signedOut: boolean } | null>(null)
+  // roleChanged: the notice to show when the save was refused because the role changed.
+  const [error, setError] = useState<{ message: string; signedOut: boolean; roleChanged: string | null } | null>(null)
 
   // Only open records: a ticked tile is always one that Confirm will actually confirm.
   const gridParams = useMemo(() => gridQueueParams(params), [params])
@@ -62,7 +64,8 @@ export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
   }
 
   const confirm = async () => {
-    if (confirming || items.length === 0) return
+    // The role picks the save RPC (trainee or not): never save before it is known.
+    if (confirming || items.length === 0 || sessionStatus === 'loading') return
     setConfirming(true)
     setError(null)
     try {
@@ -73,7 +76,10 @@ export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
       if (trainee) void queryClient.invalidateQueries({ queryKey: ['my-held'] })
     } catch (e) {
       const message = e instanceof Error ? e.message : (e as { message?: string })?.message ?? 'Unknown error'
-      setError({ message, signedOut: await isSignedOutError(e) })
+      const forbidden = (e as { code?: string } | null)?.code === '42501'
+      const roleChanged = roleChangedMessage(forbidden, message, trainee)
+      if (roleChanged) refreshRole()
+      setError({ message, signedOut: await isSignedOutError(e), roleChanged })
     } finally {
       setConfirming(false)
     }
@@ -113,7 +119,7 @@ export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => void confirm()} disabled={confirming || items.length === 0 || !!result} className={btn}>
+        <button type="button" onClick={() => void confirm()} disabled={confirming || items.length === 0 || !!result || sessionStatus === 'loading'} className={btn}>
           {confirming ? 'Confirming…' : `Confirm ${items.length}`}
         </button>
         {result && (
@@ -140,6 +146,8 @@ export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
                 Sign in again
               </button>
             </>
+          ) : error.roleChanged ? (
+            <>{error.roleChanged}</>
           ) : (
             <>Couldn't confirm: {error.message}. Your ticks are kept — try again.</>
           )}

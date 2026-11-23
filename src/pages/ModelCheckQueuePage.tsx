@@ -6,6 +6,7 @@ import { PhotoSizeControl } from '@/components/admin/fixes/PhotoSizeControl'
 import { CheckKeysHelp } from '@/components/admin/modelCheck/CheckKeysHelp'
 import { ModelCheckCard } from '@/components/admin/modelCheck/ModelCheckCard'
 import { useAdminSession } from '@/hooks/useAdminSession'
+import { roleChangedMessage } from '@/lib/roleChange'
 import { useModelCheckQueue } from '@/hooks/useModelCheckQueue'
 import { usePhotoSize } from '@/hooks/usePhotoSize'
 import { checkShortcut, type CheckAction } from '@/lib/modelCheckKeys'
@@ -68,7 +69,7 @@ function CheckQueue({
   const photoOnly = image !== null
   const queue = useModelCheckQueue(task.id, params, image)
   const { records, patch } = queue
-  const { email, status: sessionStatus, inTraining } = useAdminSession()
+  const { email, status: sessionStatus, inTraining, refreshRole } = useAdminSession()
   const trainee = sessionStatus === 'volunteer' && inTraining
   const [index, setIndex] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -161,6 +162,11 @@ function CheckQueue({
     if (!rec || !picked || savingRef.current) return
     // A key pressed after a save but before the page advanced still sees the saved photo: refuse it.
     if (!canSavePhoto(savedGuard.current, rec.image_no)) return
+    // The role picks the save RPC (trainee or not): never save before it is known.
+    if (sessionStatus === 'loading') {
+      setNotice({ tone: 'info', text: 'Still checking your account — try again in a moment.' })
+      return
+    }
     const target = rec
     const answer = picked
     const at = index
@@ -199,7 +205,9 @@ function CheckQueue({
       if (outcome.reason === 'signed-out') {
         setNotice({ tone: 'error', text: 'Signed out — sign in again', onSignIn: signInAgain })
       } else if (outcome.reason === 'forbidden') {
-        setNotice({ tone: 'error', text: "This account isn't allowed to check model answers." })
+        const changed = roleChangedMessage(true, outcome.message, trainee)
+        if (changed) refreshRole()
+        setNotice({ tone: 'error', text: changed ?? "This account isn't allowed to check model answers." })
       } else {
         setNotice({ tone: 'error', text: `Couldn't save: ${outcome.message}. Nothing was lost — try again.` })
       }

@@ -19,6 +19,7 @@ export type PasswordResult =
   | { ok: false; message: string }
 
 const GENERIC = 'Something went wrong. Try again.'
+const SIGNED_OUT = 'You are signed out. Sign in again.'
 
 export async function listPeople(): Promise<Person[]> {
   const { data, error } = await adminSupabase.rpc('people')
@@ -29,9 +30,11 @@ export async function listPeople(): Promise<Person[]> {
   }))
 }
 
-async function callApi(body: Record<string, unknown>): Promise<{ ok: boolean; json: Record<string, unknown> }> {
+// null when there is no session: nothing is sent.
+async function callApi(body: Record<string, unknown>): Promise<{ ok: boolean; json: Record<string, unknown> } | null> {
   const { data } = await adminSupabase.auth.getSession()
-  const token = data.session?.access_token ?? ''
+  const token = data.session?.access_token
+  if (!token) return null
   const res = await fetch('/api/volunteers', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -48,7 +51,9 @@ async function callApi(body: Record<string, unknown>): Promise<{ ok: boolean; js
 
 async function passwordCall(body: Record<string, unknown>): Promise<PasswordResult> {
   try {
-    const { ok, json } = await callApi(body)
+    const answer = await callApi(body)
+    if (!answer) return { ok: false, message: SIGNED_OUT }
+    const { ok, json } = answer
     if (!ok) return { ok: false, message: typeof json.error === 'string' ? json.error : GENERIC }
     return {
       ok: true,

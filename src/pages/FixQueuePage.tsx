@@ -8,6 +8,7 @@ import { ReviewCard, type CardAction, type CardNotice, type CompanionView } from
 import { PhotoSizeControl } from '@/components/admin/fixes/PhotoSizeControl'
 import { ReviewHelp } from '@/components/admin/fixes/ReviewHelp'
 import { useAdminSession } from '@/hooks/useAdminSession'
+import { roleChangedMessage } from '@/lib/roleChange'
 import { useCompanions } from '@/hooks/useCompanions'
 import { useFixQueue, type QueueEntry } from '@/hooks/useFixQueue'
 import { usePhotoSize } from '@/hooks/usePhotoSize'
@@ -90,7 +91,7 @@ function ReviewQueue({
   const savingRef = useRef(false)
   const [notice, setNotice] = useState<CardNotice | null>(null)
   const queryClient = useQueryClient()
-  const { status: sessionStatus, inTraining } = useAdminSession()
+  const { status: sessionStatus, inTraining, refreshRole } = useAdminSession()
   const trainee = sessionStatus === 'volunteer' && inTraining
   const [, rerender] = useReducer((n: number) => n + 1, 0)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -300,7 +301,9 @@ function ReviewQueue({
       } else if (outcome.reason === 'signed-out') {
         setNotice({ tone: 'error', text: `${c.title}: Signed out — sign in again`, onSignIn: signInAgain })
       } else if (outcome.reason === 'forbidden') {
-        setNotice({ tone: 'error', text: `${c.title}: This account isn't allowed to review fixes.` })
+        const changed = roleChangedMessage(true, outcome.message, trainee)
+        if (changed) refreshRole()
+        setNotice({ tone: 'error', text: `${c.title}: ${changed ?? "This account isn't allowed to review fixes."}` })
       } else {
         setNotice({
           tone: 'error',
@@ -314,6 +317,11 @@ function ReviewQueue({
 
   const save = async ({ status, values }: SaveDecision) => {
     if (!rec || savingRef.current) return
+    // The role picks the save RPC (trainee or not): never save before it is known.
+    if (sessionStatus === 'loading') {
+      setNotice({ tone: 'info', text: 'Still checking your account — try again in a moment.' })
+      return
+    }
     // A stored companion edit must never be skipped just because its row isn't loaded.
     // Nor a selected No loco, which also answers the fields that haven't loaded.
     const blocked = companionBlockMessage(
@@ -419,7 +427,9 @@ function ReviewQueue({
       if (outcome.reason === 'signed-out') {
         failNotice({ tone: 'error', text: 'Signed out — sign in again', onSignIn: signInAgain })
       } else if (outcome.reason === 'forbidden') {
-        failNotice({ tone: 'error', text: "This account isn't allowed to review fixes." })
+        const changed = roleChangedMessage(true, outcome.message, trainee)
+        if (changed) refreshRole()
+        failNotice({ tone: 'error', text: changed ?? "This account isn't allowed to review fixes." })
       } else {
         failNotice({ tone: 'error', text: `Couldn't save: ${outcome.message}. Nothing was lost — try again.` })
       }

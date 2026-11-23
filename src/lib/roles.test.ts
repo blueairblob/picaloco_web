@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { menuSections, roleStatusFrom, showAdminAnalysis } from './roles'
+import { menuSections, roleFor, roleStatusFrom, showAdminAnalysis, type MyRole } from './roles'
 
 describe('roleStatusFrom', () => {
   it('maps session and role to a status', () => {
@@ -10,6 +10,22 @@ describe('roleStatusFrom', () => {
     expect(roleStatusFrom(true, { role: null, in_training: null, must_change_password: null })).toBe('no-access')
     expect(roleStatusFrom(true, { role: 'admin', in_training: false, must_change_password: false })).toBe('admin')
     expect(roleStatusFrom(true, { role: 'volunteer', in_training: true, must_change_password: true })).toBe('volunteer')
+  })
+})
+
+describe('roleFor', () => {
+  const vol: MyRole = { role: 'volunteer', in_training: true, must_change_password: false }
+  it('uses the answer fetched for this user', () => {
+    expect(roleFor({ userId: 'u1', role: vol }, 'u1')).toBe(vol)
+    expect(roleFor({ userId: 'u1', role: null }, 'u1')).toBeNull()
+  })
+  it('never reuses an answer fetched for another user (still loading)', () => {
+    expect(roleFor({ userId: 'u1', role: vol }, 'u2')).toBeUndefined()
+  })
+  it('is undefined before any answer or without a user', () => {
+    expect(roleFor(null, 'u1')).toBeUndefined()
+    expect(roleFor({ userId: 'u1', role: vol }, null)).toBeUndefined()
+    expect(roleFor({ userId: 'u1', role: vol }, undefined)).toBeUndefined()
   })
 })
 

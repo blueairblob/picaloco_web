@@ -5,6 +5,8 @@
 export const TEMP_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
 export const TEMP_PASSWORD_LENGTH = 12
 export const MIN_PASSWORD_LENGTH = 8
+// The auth server hashes with bcrypt, which only reads the first 72 bytes.
+export const MAX_PASSWORD_BYTES = 72
 
 export type VolunteersResult = { status: number; body: Record<string, unknown> }
 type FetchFn = (url: string, init?: RequestInit) => Promise<Response>
@@ -77,6 +79,9 @@ export async function handleVolunteers(opts: {
     if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
       return fail(400, `password must be at least ${MIN_PASSWORD_LENGTH} characters`)
     }
+    if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) {
+      return fail(400, `password is too long: ${MAX_PASSWORD_BYTES} characters at most (fewer with accented letters)`)
+    }
     const me = await send('/auth/v1/user', { method: 'GET', headers: callerHeaders })
     if (!me) return fail(502, 'the account server did not answer')
     if (me.status === 401 || me.status === 403) return fail(401, 'sign in again')
@@ -126,7 +131,8 @@ export async function handleVolunteers(opts: {
     if (typeof id !== 'string') return fail(502, 'could not create the account')
     const grant = await rpc('add_volunteer', { p_user_id: id })
     if (!grant.ok) {
-      await admin(`/${id}`, 'DELETE') // no account without a role
+      const undone = await admin(`/${id}`, 'DELETE') // no account without a role
+      if (!undone?.ok) return fail(502, 'could not make them a volunteer, and the new account could not be undone: ask the developer')
       return fail(502, 'could not make them a volunteer; nothing was created')
     }
     return { status: 200, body: { user_id: id, email, temp_password: password } }
@@ -139,10 +145,14 @@ export async function handleVolunteers(opts: {
   if (!st) return fail(502, 'could not check that account')
   if (st.kind === 'none') return fail(404, 'no such account')
   if (st.kind !== 'volunteer') return fail(409, 'not an active volunteer')
+  // Flag first: if the flag fails nothing has changed; if the new password then fails, the old one
+  // still works and they are only asked to choose a new one at sign-in.
+  const flag = await rpc('require_password_change', { p_user_id: userId })
+  if (!flag.ok) return fail(502, 'could not reset the password; nothing was changed')
   const password = makeTempPassword(random)
   const put = await admin(`/${userId}`, 'PUT', { password })
-  if (!put?.ok) return fail(502, 'could not set the password')
-  const flag = await rpc('require_password_change', { p_user_id: userId })
-  if (!flag.ok) return fail(502, 'password changed but could not require a change at sign-in')
+  if (!put?.ok) {
+    return fail(502, 'could not set the new password; their old password still works and they will be asked to change it')
+  }
   return { status: 200, body: { temp_password: password } }
 }

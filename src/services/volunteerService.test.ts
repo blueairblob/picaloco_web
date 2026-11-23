@@ -42,6 +42,13 @@ describe('addVolunteer', () => {
     expect(await addVolunteer('a@b.org')).toEqual({ ok: false, message: 'that email already has an account' })
   })
 
+  it('does not call the server when signed out', async () => {
+    getSession.mockResolvedValue({ data: { session: null } })
+    expect(await addVolunteer('a@b.org')).toEqual({ ok: false, message: 'You are signed out. Sign in again.' })
+    expect(await resetPassword('u1')).toEqual({ ok: false, message: 'You are signed out. Sign in again.' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('returns a generic message when fetch throws', async () => {
     fetchMock.mockRejectedValue(new Error('net'))
     expect(await addVolunteer('a@b.org')).toEqual({ ok: false, message: 'Something went wrong. Try again.' })
