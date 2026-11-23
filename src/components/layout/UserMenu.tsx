@@ -4,7 +4,9 @@ import { useTheme, type Theme } from '@/hooks/useTheme'
 import { useTextSize } from '@/hooks/useTextSize'
 import { useAdminSession } from '@/hooks/useAdminSession'
 import type { TextSize } from '@/lib/textSize'
+import { useQuery } from '@tanstack/react-query'
 import { menuSections } from '@/lib/roles'
+import { listPeople } from '@/services/volunteerService'
 
 const THEMES: [Theme, string][] = [
   ['system', 'System'],
@@ -50,6 +52,9 @@ export function UserMenu() {
   const { theme, setTheme } = useTheme()
   const { textSize, setTextSize } = useTextSize()
   const { status, email, inTraining, signOut } = useAdminSession()
+  // Same key as the Volunteers page, so the count and that page share one fetch.
+  const people = useQuery({ queryKey: ['people'], queryFn: listPeople, enabled: status === 'admin' })
+  const heldTotal = (people.data ?? []).reduce((n, p) => n + p.held_count, 0)
 
   useEffect(() => {
     if (!open) return
@@ -143,6 +148,7 @@ export function UserMenu() {
                   </span>
                   <span className="flex flex-col py-1 leading-tight">
                     {step.label}
+                    {step.path === '/admin/approvals' && heldTotal > 0 && ` (${heldTotal})`}
                     {step.hint && <span className="text-xs text-[var(--muted)]">{step.hint}</span>}
                   </span>
                 </Link>
