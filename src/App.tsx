@@ -10,7 +10,7 @@ import { ModelCheckPage } from '@/pages/ModelCheckPage'
 import { ModelCheckQueuePage } from '@/pages/ModelCheckQueuePage'
 import { RequireAdmin } from '@/components/admin/RequireAdmin'
 import { ApprovalsPage } from '@/pages/ApprovalsPage'
-import { ComingSoon } from '@/components/admin/ComingSoon'
+import { ChangesPage } from '@/pages/ChangesPage'
 import { VolunteersPage } from '@/pages/VolunteersPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { useTextSize } from '@/hooks/useTextSize'
@@ -33,7 +33,7 @@ export function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/volunteers" element={<RequireAdmin><VolunteersPage /></RequireAdmin>} />
         <Route path="/admin/approvals" element={<RequireAdmin><ApprovalsPage /></RequireAdmin>} />
-        <Route path="/admin/changes" element={<RequireAdmin><ComingSoon title="Changes" /></RequireAdmin>} />
+        <Route path="/admin/changes" element={<RequireAdmin><ChangesPage /></RequireAdmin>} />
         <Route path="/admin/fixes" element={<RequireAdmin allowVolunteers><DataFixesPage /></RequireAdmin>} />
         <Route path="/admin/fixes/:fixId" element={<RequireAdmin allowVolunteers><FixQueuePage /></RequireAdmin>} />
         <Route path="/admin/model-check" element={<RequireAdmin allowVolunteers><ModelCheckPage /></RequireAdmin>} />

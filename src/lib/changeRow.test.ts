@@ -1,0 +1,57 @@
+import { describe, expect, it } from 'vitest'
+import { describeChange, type ChangeRow } from './changeRow'
+
+const base: ChangeRow = {
+  cursor: 'c', kind: 'fix_review', at: '2026-11-20T10:00:00Z', by_user: 'u', approved_by: null,
+  image_no: 'arc1', subject: 'Loco number', before: null, after: null,
+  ref_table: 'data_fix_history', ref_id: 1, undone: false,
+}
+const vals = (values: string[], status: string) => ({ values, status })
+
+describe('describeChange', () => {
+  it('fix_review', () => {
+    const d = describeChange({ ...base, before: vals(['1234'], 'extracted'), after: vals(['1234', '5678'], 'verified') })
+    expect(d.what).toBe('Data fix review — Loco number')
+    expect(d.before).toBe('Not reviewed: 1234')
+    expect(d.after).toBe('Verified: 1234; 5678')
+    expect(d.canUndo).toBe(true)
+  })
+  it('fix_model_check and fix_undo', () => {
+    expect(describeChange({ ...base, kind: 'fix_model_check' }).what).toBe('Data fix from Model check — Loco number')
+    const u = describeChange({ ...base, kind: 'fix_undo' })
+    expect(u.what).toBe('Undo of a data fix — Loco number')
+    expect(u.before).toBe('(none)')
+  })
+  it('answer with AI shown', () => {
+    const d = describeChange({
+      ...base, kind: 'answer', subject: 'Is this a tram?', ref_table: 'model_answer',
+      before: { shown_answer: 'yes' }, after: { answer: 'no', mode: 'assisted' },
+    })
+    expect(d.what).toBe('Model check answer — Is this a tram?')
+    expect(d.before).toBe('AI said: yes')
+    expect(d.after).toBe('no (assisted)')
+    expect(d.canUndo).toBe(true)
+  })
+  it('answer blind', () => {
+    const d = describeChange({ ...base, kind: 'answer', ref_table: 'model_answer', before: { shown_answer: null }, after: { answer: 'no', mode: 'blind' } })
+    expect(d.before).toBe('blind sample')
+  })
+  it('answer_withdrawn', () => {
+    const d = describeChange({ ...base, kind: 'answer_withdrawn', ref_table: 'model_answer_withdrawal', after: { note: 'oops' } })
+    expect(d.what).toBe('Model check answer withdrawn — Loco number')
+    expect(d.after).toBe('oops')
+    expect(d.canUndo).toBe(false)
+  })
+  it.each([
+    ['held_submitted', 'Sent for approval'],
+    ['held_approved', 'Approved'],
+    ['held_rejected', 'Rejected'],
+  ])('%s', (kind, text) => {
+    const d = describeChange({ ...base, kind, ref_table: 'pending_fix_review', before: vals(['1'], 'extracted'), after: { ...vals(['2'], 'verified'), note: 'no' } })
+    expect(d.what).toBe(`${text} — Loco number`)
+    expect(d.canUndo).toBe(false)
+  })
+  it('undone rows cannot be undone again', () => {
+    expect(describeChange({ ...base, undone: true }).canUndo).toBe(false)
+  })
+})
