@@ -82,6 +82,11 @@ export async function handleVolunteers(opts: {
     if (me.status === 401 || me.status === 403) return fail(401, 'sign in again')
     const id = me.ok ? ((await me.json().catch(() => null)) as { id?: unknown } | null)?.id : undefined
     if (typeof id !== 'string' || !UUID.test(id)) return fail(502, 'the account server did not answer')
+    // Only a volunteer on their forced first password change may use this; never an admin.
+    const role = await rpc('my_role', {})
+    if (!role.ok) return fail(502, 'could not check your access')
+    const r = role.value as { role?: unknown; must_change_password?: unknown } | null
+    if (r?.role !== 'volunteer' || r.must_change_password !== true) return fail(403, 'not allowed')
     const put = await admin(`/${id}`, 'PUT', { password })
     return put?.ok ? { status: 200, body: { ok: true } } : fail(502, 'could not set the password')
   }

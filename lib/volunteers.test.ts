@@ -176,6 +176,7 @@ describe('handleVolunteers', () => {
     const { result, calls } = await run(
       {
         'GET /auth/v1/user': { status: 200, body: { id: UID } },
+        [rpc('my_role')]: { status: 200, body: { role: 'volunteer', must_change_password: true } },
         [`PUT /auth/v1/admin/users/${UID}`]: { status: 200, body: {} },
       },
       { action: 'set_password', password: 'long-enough-pw', user_id: NEW_ID },
@@ -193,12 +194,34 @@ describe('handleVolunteers', () => {
     expect(bad.result.status).toBe(401)
   })
 
+  it('set_password is refused unless a volunteer must change it', async () => {
+    const roles: Array<{ status: number; body: unknown }> = [
+      { status: 200, body: { role: 'admin', must_change_password: false } },
+      { status: 200, body: { role: 'volunteer', must_change_password: false } },
+      { status: 200, body: { role: null, must_change_password: null } },
+    ]
+    for (const my of roles) {
+      const { result, calls } = await run(
+        { 'GET /auth/v1/user': { status: 200, body: { id: UID } }, [rpc('my_role')]: my },
+        { action: 'set_password', password: 'long-enough-pw' },
+      )
+      expect(result.status).toBe(403)
+      expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+    }
+    const failed = await run(
+      { 'GET /auth/v1/user': { status: 200, body: { id: UID } }, [rpc('my_role')]: { status: 500, body: {} } },
+      { action: 'set_password', password: 'long-enough-pw' },
+    )
+    expect(failed.result.status).toBe(502)
+    expect(failed.calls.some((c) => c.method === 'PUT')).toBe(false)
+  })
+
   it('never puts a key in any answer', async () => {
     const cases: Array<[Answers, unknown]> = [
       [{ [rpc('is_admin')]: { status: 500, body: { message: `${SERVICE} ${ANON}` } } }, { action: 'create', email: 'a@b.org' }],
       [base({ [rpc('account_status')]: status('other') }), { action: 'create', email: 'a@b.org' }],
       [base({ [rpc('account_status')]: status('none', null), 'POST /auth/v1/admin/users': { status: 500, body: { message: SERVICE } } }), { action: 'create', email: 'a@b.org' }],
-      [{ 'GET /auth/v1/user': { status: 200, body: { id: UID } }, [`PUT /auth/v1/admin/users/${UID}`]: { status: 500, body: { message: SERVICE } } }, { action: 'set_password', password: 'long-enough-pw' }],
+      [{ 'GET /auth/v1/user': { status: 200, body: { id: UID } }, [rpc('my_role')]: { status: 200, body: { role: 'volunteer', must_change_password: true } }, [`PUT /auth/v1/admin/users/${UID}`]: { status: 500, body: { message: SERVICE } } }, { action: 'set_password', password: 'long-enough-pw' }],
     ]
     for (const [a, body] of cases) {
       const s = JSON.stringify((await run(a, body)).result)
