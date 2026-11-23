@@ -53,3 +53,11 @@ export function describeChange(row: ChangeRow): { what: string; before: string; 
   const note = row.kind === 'held_rejected' && a && typeof a.note === 'string' && a.note ? ` — ${a.note}` : ''
   return { what, before: fixText(b), after: `${fixText(a)}${note}`, canUndo }
 }
+
+// The rows "Undo all" sends. Undo rows are left out unless the kind filter is
+// exactly ['fix_undo']: undoing an undo re-applies the change it undid, and an
+// already-undone change is listed beside its live undo row.
+export function bulkUndoRows(rows: ChangeRow[], kinds: string[] | undefined): ChangeRow[] {
+  const undoOnly = kinds?.length === 1 && kinds[0] === 'fix_undo'
+  return rows.filter((r) => describeChange(r).canUndo && (undoOnly || r.kind !== 'fix_undo'))
+}

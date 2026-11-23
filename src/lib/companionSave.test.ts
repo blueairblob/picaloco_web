@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { carriedCompanions, companionBlockMessage, isCompanionDirty } from './companionSave'
+import { carriedCompanions, companionBlockMessage, companionSavedNote, isCompanionDirty } from './companionSave'
 import type { CompanionValue } from '@/services/dataFixService'
 
 const row = (over: Partial<CompanionValue> = {}): CompanionValue => ({
@@ -36,5 +36,13 @@ describe('carriedCompanions', () => {
     expect(carriedCompanions(['a', 'b'], new Set(['b']))).toEqual(['a'])
     expect(carriedCompanions(['a'], new Set(['a']))).toEqual([])
     expect(carriedCompanions([], new Set())).toEqual([])
+  })
+})
+
+describe('companionSavedNote', () => {
+  it('says what happened to companions saved before a failed main save', () => {
+    expect(companionSavedNote([], false)).toBeNull()
+    expect(companionSavedNote(['Loco name'], false)).toBe('(Loco name was saved.)')
+    expect(companionSavedNote(['Loco name'], true)).toBe('(Loco name was sent for approval.)')
   })
 })

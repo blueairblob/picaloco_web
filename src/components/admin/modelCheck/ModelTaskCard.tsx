@@ -8,6 +8,8 @@ import { photoCheckLink } from '@/lib/modelCheckPhoto'
 import { navFromState } from '@/lib/navFrom'
 import { sampleButtonText } from '@/lib/modelCheckProgress'
 import type { DataFix, FixStatus } from '@/services/dataFixService'
+import { useAdminSession } from '@/hooks/useAdminSession'
+import { showAdminAnalysis } from '@/lib/roles'
 
 const btn =
   'inline-flex min-h-11 items-center rounded-full border border-[var(--border)] px-5 text-base font-medium text-[var(--foreground)] no-underline hover:border-[var(--accent)] hover:text-[var(--accent)]'
@@ -29,13 +31,19 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
   const runId = picked ?? runs.data?.[0]?.id ?? null // newest run first
   const run = runs.data?.find((r) => r.id === runId) ?? null
   const stats = progress.find((p) => p.run_id === runId) ?? null
+  // The confusion table and conflicts come from admin-only RPCs.
+  const isAdmin = showAdminAnalysis(useAdminSession().status)
 
   const confusion = useQuery({
     queryKey: ['model-confusion', runId],
     queryFn: () => getConfusion(runId as number, true),
-    enabled: runId !== null,
+    enabled: isAdmin && runId !== null,
   })
-  const conflicts = useQuery({ queryKey: ['model-conflicts', task.id], queryFn: () => getConflicts(task.id) })
+  const conflicts = useQuery({
+    queryKey: ['model-conflicts', task.id],
+    queryFn: () => getConflicts(task.id),
+    enabled: isAdmin,
+  })
 
   const label = (id: string) => task.answers.find((a) => a.id === id)?.label ?? id
   const cell = (m: string, c: string) =>
@@ -94,33 +102,37 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
             </div>
           </dl>
 
-          {confusion.isError && <p className="mt-4 text-base text-[var(--muted)]">Could not load the confusion table.</p>}
-          <div className="mt-4 overflow-x-auto">
-            <table className="text-base" aria-label="Blind sample: model answer against checked answer">
-              <thead>
-                <tr>
-                  <th className="px-3 py-1 text-left font-medium text-[var(--muted)]">Model \ Checked</th>
-                  {task.answers.map((a) => (
-                    <th key={a.id} className="px-3 py-1 text-right font-medium text-[var(--muted)]">
-                      {a.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {task.answers.map((m) => (
-                  <tr key={m.id}>
-                    <th className="px-3 py-1 text-left font-medium text-[var(--foreground)]">{m.label}</th>
-                    {task.answers.map((c) => (
-                      <td key={c.id} className="px-3 py-1 text-right tabular-nums text-[var(--foreground)]">
-                        {cell(m.id, c.id)}
-                      </td>
+          {isAdmin && confusion.isError && (
+            <p className="mt-4 text-base text-[var(--muted)]">Could not load the confusion table.</p>
+          )}
+          {isAdmin && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="text-base" aria-label="Blind sample: model answer against checked answer">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-1 text-left font-medium text-[var(--muted)]">Model \ Checked</th>
+                    {task.answers.map((a) => (
+                      <th key={a.id} className="px-3 py-1 text-right font-medium text-[var(--muted)]">
+                        {a.label}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {task.answers.map((m) => (
+                    <tr key={m.id}>
+                      <th className="px-3 py-1 text-left font-medium text-[var(--foreground)]">{m.label}</th>
+                      {task.answers.map((c) => (
+                        <td key={c.id} className="px-3 py-1 text-right tabular-nums text-[var(--foreground)]">
+                          {cell(m.id, c.id)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 
@@ -132,9 +144,11 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
         ))}
       </div>
 
-      <h3 className="mt-6 text-base font-medium text-[var(--foreground)]">Conflicts ({conflictRows.length})</h3>
-      {conflicts.isError && <p className="mt-2 text-base text-[var(--muted)]">Could not load the conflicts.</p>}
-      {conflictRows.length > 0 && (
+      {isAdmin && (
+        <h3 className="mt-6 text-base font-medium text-[var(--foreground)]">Conflicts ({conflictRows.length})</h3>
+      )}
+      {isAdmin && conflicts.isError && <p className="mt-2 text-base text-[var(--muted)]">Could not load the conflicts.</p>}
+      {isAdmin && conflictRows.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1 text-base">
           {conflictRows.map((c) => (
             <li key={`${c.image_no}:${c.fix_id}`}>

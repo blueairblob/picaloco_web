@@ -9,7 +9,7 @@ vi.mock('@/lib/supabase/adminClient', () => ({
   },
 }))
 
-import { addVolunteer, listPeople, resetPassword, setVolunteer } from './volunteerService'
+import { addVolunteer, formatAddedAt, listPeople, resetPassword, setVolunteer } from './volunteerService'
 
 const fetchMock = vi.fn()
 
@@ -86,5 +86,15 @@ describe('listPeople', () => {
     const p = await listPeople()
     expect(rpc).toHaveBeenCalledWith('people')
     expect(p[0].held_count).toBe(3)
+  })
+})
+
+describe('formatAddedAt', () => {
+  it('shows a dash for admins, who have no added date', () => {
+    expect(formatAddedAt(null)).toBe('—')
+  })
+  it('shows the local date otherwise', () => {
+    const at = '2026-11-20T10:00:00Z'
+    expect(formatAddedAt(at)).toBe(new Date(at).toLocaleDateString())
   })
 })

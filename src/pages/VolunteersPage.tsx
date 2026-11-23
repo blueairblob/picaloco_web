@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AdminSteps } from '@/components/admin/AdminSteps'
 import {
   addVolunteer,
+  formatAddedAt,
   listPeople,
   resetPassword,
   setVolunteer,
@@ -186,7 +187,7 @@ export function VolunteersPage() {
                       )}
                     </td>
                     <td className="p-3">{p.held_count}</td>
-                    <td className="p-3">{new Date(p.added_at).toLocaleDateString()}</td>
+                    <td className="p-3">{formatAddedAt(p.added_at)}</td>
                     <td className="p-3">
                       {isAdmin ? null : removed ? (
                         <span className="flex items-center gap-2">

@@ -26,7 +26,7 @@ import {
   type CardToggles,
   type FieldState,
 } from '@/lib/cardAnswer'
-import { carriedCompanions, companionBlockMessage, isCompanionDirty } from '@/lib/companionSave'
+import { carriedCompanions, companionBlockMessage, companionSavedNote, isCompanionDirty } from '@/lib/companionSave'
 import { canUseSuggestion, editBaseline, sameValues, type SaveDecision } from '@/lib/reviewDecision'
 import { draftKey, isDraftOutdated, reviewDrafts } from '@/lib/reviewDrafts'
 import { ctrlEnterAction, isTypingTarget, shortcutFor } from '@/lib/reviewKeys'
@@ -353,8 +353,10 @@ function ReviewQueue({
     const targetKey = key
     const at = index
     const savedTitles: string[] = []
-    const failNotice = (n: CardNotice) =>
-      setNotice(savedTitles.length > 0 ? { ...n, text: `${n.text} (${savedTitles.join(', ')} was saved.)` } : n)
+    const failNotice = (n: CardNotice) => {
+      const note = companionSavedNote(savedTitles, trainee)
+      setNotice(note ? { ...n, text: `${n.text} ${note}` } : n)
+    }
     savingRef.current = true
     setSaving(true)
     setNotice(null)

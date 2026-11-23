@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AdminSteps } from '@/components/admin/AdminSteps'
 import { listPeople } from '@/services/volunteerService'
 import { listChanges, undoRows, PartialUndoError } from '@/services/changeService'
-import { describeChange, KIND_LABEL, type ChangeRow } from '@/lib/changeRow'
+import { bulkUndoRows, describeChange, KIND_LABEL, type ChangeRow } from '@/lib/changeRow'
 import type { BatchTotals } from '@/lib/chunk'
 
 const box = 'rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6'
@@ -55,7 +55,7 @@ export function ChangesPage() {
   const emailOf = (id: string | null) =>
     id ? (people.data?.find((p) => p.user_id === id)?.email ?? 'Unknown user') : '—'
   const filteredEmail = userId ? emailOf(userId) : 'everyone'
-  const undoable = rows.filter((r) => describeChange(r).canUndo)
+  const undoable = bulkUndoRows(rows, filters.kinds)
 
   async function loadMore() {
     setLoadingMore(true)

@@ -23,6 +23,12 @@ export function roleStatusFrom(hasSession: boolean, myRole: MyRole | null | unde
   return myRole.role
 }
 
+// The Model check overview's confusion table and conflicts come from
+// admin-only RPCs: load and show them for admins only.
+export function showAdminAnalysis(status: RoleStatus): boolean {
+  return status === 'admin'
+}
+
 const VOLUNTEER_PATHS = ['/admin/fixes', '/admin/model-check']
 
 export function menuSections(status: RoleStatus, inTraining: boolean): MenuSection[] {

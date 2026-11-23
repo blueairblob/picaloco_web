@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeChange, type ChangeRow } from './changeRow'
+import { bulkUndoRows, describeChange, type ChangeRow } from './changeRow'
 
 const base: ChangeRow = {
   cursor: 'c', kind: 'fix_review', at: '2026-11-20T10:00:00Z', by_user: 'u', approved_by: null,
@@ -53,5 +53,25 @@ describe('describeChange', () => {
   })
   it('undone rows cannot be undone again', () => {
     expect(describeChange({ ...base, undone: true }).canUndo).toBe(false)
+  })
+})
+
+describe('bulkUndoRows', () => {
+  const h = { ...base, cursor: 'h', ref_id: 1, undone: true }
+  const u = { ...base, cursor: 'u', kind: 'fix_undo', ref_id: 2 }
+  const x = { ...base, cursor: 'x', ref_id: 3 }
+  const ids = (rows: ChangeRow[]) => rows.map((r) => r.ref_id)
+
+  it('leaves undo rows out by default, so an undone change is not re-applied', () => {
+    expect(ids(bulkUndoRows([h, u, x], undefined))).toEqual([3])
+  })
+  it('leaves undo rows out for any other kind filter', () => {
+    expect(ids(bulkUndoRows([h, u, x], ['fix_review']))).toEqual([3])
+  })
+  it('takes undo rows only when the kind filter is exactly fix_undo', () => {
+    expect(ids(bulkUndoRows([h, u], ['fix_undo']))).toEqual([2])
+  })
+  it('keeps single-row undo of an undo row available', () => {
+    expect(describeChange(u).canUndo).toBe(true)
   })
 })

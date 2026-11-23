@@ -5,9 +5,13 @@ export interface Person {
   email: string
   role: 'admin' | 'volunteer'
   in_training: boolean
-  added_at: string
+  added_at: string | null // NULL for admins
   removed_at: string | null
   held_count: number
+}
+
+export function formatAddedAt(addedAt: string | null): string {
+  return addedAt ? new Date(addedAt).toLocaleDateString() : '—'
 }
 
 export type PasswordResult =

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { menuSections, roleStatusFrom } from './roles'
+import { menuSections, roleStatusFrom, showAdminAnalysis } from './roles'
 
 describe('roleStatusFrom', () => {
   it('maps session and role to a status', () => {
@@ -35,5 +35,14 @@ describe('menuSections', () => {
     expect(menuSections('signed-out', false)).toEqual([])
     expect(menuSections('no-access', false)).toEqual([])
     expect(menuSections('loading', false)).toEqual([])
+  })
+})
+
+describe('showAdminAnalysis', () => {
+  it('only admins load the confusion table and conflicts (admin-only RPCs)', () => {
+    expect(showAdminAnalysis('admin')).toBe(true)
+    for (const s of ['volunteer', 'loading', 'signed-out', 'no-access'] as const) {
+      expect(showAdminAnalysis(s)).toBe(false)
+    }
   })
 })

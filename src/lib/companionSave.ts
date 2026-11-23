@@ -23,3 +23,10 @@ export function companionBlockMessage(
 export function carriedCompanions(dirtyFixIds: string[], touched: ReadonlySet<string>): string[] {
   return dirtyFixIds.filter((id) => !touched.has(id))
 }
+
+// Added to a failure notice when companions went through before the main save failed. A trainee's
+// companion is only sent for approval, not saved.
+export function companionSavedNote(titles: string[], trainee: boolean): string | null {
+  if (titles.length === 0) return null
+  return `(${titles.join(', ')} ${trainee ? 'was sent for approval' : 'was saved'}.)`
+}
