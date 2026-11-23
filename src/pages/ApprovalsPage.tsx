@@ -63,9 +63,10 @@ export function ApprovalsPage() {
     items: HeldItem[],
     verb: 'approved' | 'rejected',
     run: (kind: 'fix' | 'answer', ids: number[]) => Promise<DecisionResult>,
-  ) {
-    if (items.length === 0) return
+  ): Promise<boolean> {
+    if (items.length === 0) return false
     setBusy(true)
+    let ok = false
     try {
       const total: DecisionResult = { done: 0, stale: [], skipped: [] }
       for (const kind of ['fix', 'answer'] as const) {
@@ -79,16 +80,21 @@ export function ApprovalsPage() {
       setSummary(summaryLine(total, verb))
       setError(null)
       setSelected(new Set())
+      ok = true
     } catch {
       setError('Something went wrong. Try again.')
     }
     await Promise.all([qc.invalidateQueries({ queryKey: ['held'] }), qc.invalidateQueries({ queryKey: ['people'] })])
     setBusy(false)
+    return ok
   }
 
   const doApprove = (items: HeldItem[], force = false) => act(items, 'approved', (k, ids) => approve(k, ids, force))
-  const doReject = (items: HeldItem[], userId: string) =>
-    act(items, 'rejected', (k, ids) => reject(k, ids, notes[userId]?.trim() || undefined))
+  // The note is sent once: it is cleared after a successful reject so it can't ride along on the next one.
+  async function doReject(items: HeldItem[], userId: string) {
+    const ok = await act(items, 'rejected', (k, ids) => reject(k, ids, notes[userId]?.trim() || undefined))
+    if (ok) setNotes((n) => ({ ...n, [userId]: '' }))
+  }
 
   function toggle(i: HeldItem) {
     setSelected((s) => {
