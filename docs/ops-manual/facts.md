@@ -9,7 +9,7 @@ Checked 2026-11-20. Items marked *(to confirm)* need the developer's check befor
 | What | Address |
 |---|---|
 | Public site (what volunteers open) | https://picaloco-web.vercel.app |
-| Admin pages | https://picaloco-web.vercel.app/admin (Data Fixes `/admin/fixes`, Model check `/admin/model-check`) |
+| Admin pages | https://picaloco-web.vercel.app/admin (Data Fixes `/admin/fixes`, Model check `/admin/model-check`; admin-only People pages `/admin/volunteers`, `/admin/approvals`, `/admin/changes`) |
 | Server (public, via Tailscale Funnel) | https://huey.taila2eeb2.ts.net |
 | Data health check (technician) | `GET <server>/rest/v1/mobile_catalog_view?select=image_no&limit=1` with headers `apikey: <anon key>` and `Accept-Profile: rat` → a JSON row |
 | Photo address pattern | `<server>/storage/v1/object/public/picaloco/images/<image_no>.webp` (spaces removed) |
@@ -41,14 +41,22 @@ A photo number that doesn't exist returns no search row and HTTP 400 for the pho
 | KeePass | The developer's password safe | Developer's PC | Free | All stored logins lost unless the `.kdbx` file is copied elsewhere | KeePass master password + where the `.kdbx` copy is kept |
 | Developer's PC | Pulls a daily copy of the backups (task "RAT backup pull") and pushes the encrypted copy to Drive | Developer | — | Daily off-site copies stop; server keeps 14 days | — |
 | UptimeRobot | Checks the site every 5 minutes and emails when it stops answering | To be created by the developer | Free plan | No automatic warnings | UptimeRobot login |
-| Site admin logins | Who can use Data Fixes and Model check | Accounts on the server | — | — | Admin account list (names only) and how to reset a password |
+| Site admin and AI volunteer logins | Admins use Data Fixes, Model check and People; AI volunteers use only Data fixes and Model check | Accounts on the server | — | — | Admin account list (names only) and how to reset a password (volunteers: an admin resets them on the Volunteers page) |
 | picaloco_agent registration keys | Let RAT's FileMaker computer send updates to the server | Stored on the server; issued by the developer | — | FileMaker updates stop reaching the site | How to issue a new key (`DEVOPS.md` §11) |
 
 ## Irreplaceable data (must never be rebuilt)
 
 - Data Fixes reviews: `rat.data_fix_value` rows not `extracted`, and `rat.data_fix_history`.
-- Model check answers: `rat.model_answer`.
+- Model check answers: `rat.model_answer`, and withdrawals of them: `rat.model_answer_withdrawal`.
+- Trainee work held for approval: `rat.pending_fix_review`, `rat.pending_model_answer`.
 - Restore these from a backup only; never re-create them from FileMaker.
+
+## Who sees what (Part 1, step 4)
+
+After Menu, then Sign in (admin):
+- Admins see Data Fixes, then Model check, plus People: Volunteers (add, reset password, training on/off, remove access), Approvals (held trainee work) and Changes (list of changes, with undo).
+- AI volunteers see only Data fixes and Model check. A new volunteer must set their own password at first sign-in. While "in training" is on, their saves wait on Approvals.
+- Migration status (`/admin`) needs no sign-in; the FileMaker GUI's "Open Admin Dashboard" links to it.
 
 ## Backups
 

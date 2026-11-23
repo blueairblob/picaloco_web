@@ -618,3 +618,44 @@ docker exec supabase-db psql -U supabase_admin -d restore_check -c "select count
 docker exec supabase-db dropdb -U supabase_admin restore_check
 ```
 The counts must match the live table.
+
+### Volunteers, approvals and undo
+
+Design: `docs/superpowers/specs/2026-11-22-ai-volunteer-design.md`.
+
+**Migration file.** `filemaker_sync/supabase/schema/add_volunteer_tables.sql` (applied to `oci`
+2026-11-23; the preservation checksum was unchanged). **Apply it last**, and re-apply it after any
+re-run of `add_data_fix_tables.sql`, `add_model_check_tables.sql` or the `fix_*.sql` files: those
+revert shared functions, and the history `source` CHECK would reject `undo` rows once any exist.
+
+**Roles.** Admin (`rat.admin_user`) and AI volunteer (`rat.volunteer`; `in_training` defaults on;
+`must_change_password`). Volunteers see only Data fixes and Model check. Migration status (`/admin`)
+stays open without sign-in, because the FileMaker GUI's "Open Admin Dashboard" links to it.
+
+**`/api/volunteers`** (Vercel function, `lib/volunteers.ts`; uses `SUPABASE_SERVICE_ROLE_KEY`,
+already set on Vercel). The caller's own token is checked as admin first. Email is normalised.
+- `create`: makes the account with a 12-character temporary password, shown once. An existing
+  non-volunteer account is refused with 409.
+- `reset`: volunteers only.
+- `set_password`: only for a volunteer who must change their password. Used only if the auth server
+  requires reauthentication for password changes. **Check this on the first live run** (huey's auth
+  settings); if it does, the first-sign-in form must call `set_password`.
+
+**Pages** (admin only, under the menu's "People"): `/admin/volunteers`, `/admin/approvals`,
+`/admin/changes`.
+
+**Held work.** With `in_training` on, saves go to `rat.pending_fix_review` /
+`rat.pending_model_answer` and don't count. Approve replays the save through the normal path,
+recording the trainee as author and the admin as approver. A stale fix (the value changed since) is
+skipped unless the admin picks "Approve anyway". A rejected item keeps the admin's note and shows to
+the trainee under "Sent back".
+
+**Undo.** `rat.undo_fix_change` works per photo and fix: it restores the state before the earliest
+undone change, only if nothing outside the batch has changed it since, and records a history row with
+source `undo`. `rat.withdraw_model_answers` is append-only: withdrawn answers stop counting
+everywhere, including `scripts/model_train.py`, and the Data fixes they filled are also undone when
+unchanged since. `rat.change_list` feeds the Changes page.
+
+**Irreplaceable (Golden Rule 7).** `rat.model_answer_withdrawal`, `rat.pending_fix_review` and
+`rat.pending_model_answer` join `rat.data_fix*` and `rat.model_answer`: restore from backup, never
+rebuild.
