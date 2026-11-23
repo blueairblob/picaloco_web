@@ -9,6 +9,7 @@ import {
   toConfirmItems,
   type QueueRecord,
 } from '@/services/dataFixService'
+import { useAdminSession } from '@/hooks/useAdminSession'
 import { adminSupabase } from '@/lib/supabase/adminClient'
 import { getReviewImageUrl } from '@/services/images'
 import { GRID_COLUMNS, TILE_LABEL, type PhotoSize } from '@/lib/photoSize'
@@ -29,6 +30,8 @@ interface Props {
 
 export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
   const queryClient = useQueryClient()
+  const { status: sessionStatus, inTraining } = useAdminSession()
+  const trainee = sessionStatus === 'volunteer' && inTraining
   const [after, setAfter] = useState<string | null>(null)
   const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
@@ -63,10 +66,11 @@ export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
     setConfirming(true)
     setError(null)
     try {
-      const done = await confirmMany(fixId, items)
+      const done = await confirmMany(fixId, items, { trainee })
       setResult({ done, of: items.length })
       void queryClient.removeQueries({ queryKey: ['data-fix-queue', fixId] })
       void queryClient.invalidateQueries({ queryKey: ['data-fix-progress'] })
+      if (trainee) void queryClient.invalidateQueries({ queryKey: ['my-held'] })
     } catch (e) {
       const message = e instanceof Error ? e.message : (e as { message?: string })?.message ?? 'Unknown error'
       setError({ message, signedOut: await isSignedOutError(e) })
@@ -114,7 +118,7 @@ export function BulkConfirmGrid({ fixId, params, photoSize }: Props) {
         </button>
         {result && (
           <span role="status" className="text-sm text-[var(--foreground)]">
-            Confirmed {result.done} of {result.of}
+            {trainee ? 'Sent for approval' : 'Confirmed'} {result.done} of {result.of}
             {result.done < result.of && ' — the rest changed meanwhile and stay in the queue'}
           </span>
         )}

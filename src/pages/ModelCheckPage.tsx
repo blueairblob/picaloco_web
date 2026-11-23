@@ -1,4 +1,5 @@
 import { AdminSteps } from '@/components/admin/AdminSteps'
+import { HeldPanel } from '@/components/admin/HeldPanel'
 import { useQuery } from '@tanstack/react-query'
 import { ModelTaskCard } from '@/components/admin/modelCheck/ModelTaskCard'
 import { getFixes } from '@/services/dataFixService'
@@ -21,6 +22,8 @@ export function ModelCheckPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">Model check</h1>
         <p className="mt-1 text-base text-[var(--muted)]">Check what the model predicted against what the photos show.</p>
       </div>
+
+      <HeldPanel />
 
       {isError && <div className={box}>Something went wrong talking to the archive. Please try again.</div>}
       {isLoading && !isError && <div className={box}>Loading…</div>}

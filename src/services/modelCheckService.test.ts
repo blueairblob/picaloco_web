@@ -97,3 +97,22 @@ describe('saveModelAnswer', () => {
     })
   })
 })
+
+describe('saveModelAnswer as a trainee', () => {
+  it('trainee answers go to submit_model_answer and come back held', async () => {
+    rpc.mockResolvedValue({ data: 9, error: null, status: 200 })
+    const out = await saveModelAnswer(
+      { taskId: 't', imageNo: 'arc1', answer: 'tram', mode: 'sure', shownRunId: 5, shownAnswer: 'steam' },
+      { trainee: true },
+    )
+    expect(rpc).toHaveBeenCalledWith('submit_model_answer', {
+      p_task_id: 't',
+      p_image_no: 'arc1',
+      p_answer: 'tram',
+      p_shown_run_id: 5,
+      p_shown_answer: 'steam',
+      p_mode: 'sure',
+    })
+    expect(out).toEqual({ ok: true, held: true, filled: [], conflicts: [] })
+  })
+})

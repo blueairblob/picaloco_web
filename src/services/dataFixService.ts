@@ -92,7 +92,8 @@ export interface QueueRecord {
 }
 
 export type ReviewOutcome =
-  | { ok: true; updated_at: string }
+  | { ok: true; updated_at: string; held?: false }
+  | { ok: true; held: true }
   | { ok: false; reason: 'stale' | 'forbidden' | 'signed-out' | 'error'; message: string }
 
 // The server matches p_text with ILIKE; escape its wildcards so the reviewer's text matches literally.
@@ -177,9 +178,10 @@ export async function reviewValue(i: {
   values: string[]
   status: Exclude<FixStatus, 'extracted'>
   expectedUpdatedAt: string
-}): Promise<ReviewOutcome> {
+}, opts?: { trainee?: boolean }): Promise<ReviewOutcome> {
   try {
-    const { data, error, status } = await adminSupabase.rpc('review_fix_value', {
+    // A trainee's save is held for approval: same arguments, a different RPC.
+    const { data, error, status } = await adminSupabase.rpc(opts?.trainee ? 'submit_fix_review' : 'review_fix_value', {
       p_image_no: i.imageNo,
       p_fix_id: i.fixId,
       p_values: i.values,
@@ -192,6 +194,7 @@ export async function reviewValue(i: {
       if (reason === 'forbidden' && !(await hasSession())) reason = 'signed-out'
       return { ok: false, reason, message: error.message }
     }
+    if (opts?.trainee) return { ok: true, held: true }
     const row = (Array.isArray(data) ? data[0] : data) as { updated_at?: string } | null
     if (!row?.updated_at) return { ok: false, reason: 'error', message: 'The server returned no record.' }
     return { ok: true, updated_at: row.updated_at }
@@ -233,8 +236,8 @@ export function toConfirmItems(records: QueueRecord[], unticked: ReadonlySet<str
 }
 
 // Returns how many were actually confirmed; stale or already-reviewed items are skipped server-side.
-export async function confirmMany(fixId: string, items: ConfirmItem[]): Promise<number> {
-  const { data, error } = await adminSupabase.rpc('confirm_fix_values', { p_fix_id: fixId, p_items: items })
+export async function confirmMany(fixId: string, items: ConfirmItem[], opts?: { trainee?: boolean }): Promise<number> {
+  const { data, error } = await adminSupabase.rpc(opts?.trainee ? 'submit_fix_confirm' : 'confirm_fix_values', { p_fix_id: fixId, p_items: items })
   if (error) throw error
   return Number(data ?? 0)
 }

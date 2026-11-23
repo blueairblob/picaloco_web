@@ -68,7 +68,8 @@ function CheckQueue({
   const photoOnly = image !== null
   const queue = useModelCheckQueue(task.id, params, image)
   const { records, patch } = queue
-  const { email } = useAdminSession()
+  const { email, status: sessionStatus, inTraining } = useAdminSession()
+  const trainee = sessionStatus === 'volunteer' && inTraining
   const [index, setIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
@@ -175,11 +176,15 @@ function CheckQueue({
         // The blind sample showed nothing, so it records nothing as shown.
         shownRunId: blind ? null : (target.run_id ?? params.run),
         shownAnswer: blind ? null : target.model_answer,
-      })
+      }, { trainee })
       if (outcome.ok) {
         savedGuard.current = guardAfterSave(target.image_no)
         setSessionSaved((s) => new Set(s).add(target.image_no))
         void queryClient.invalidateQueries({ queryKey: ['model-progress'] })
+        if (outcome.held) {
+          void queryClient.invalidateQueries({ queryKey: ['my-held'] })
+          setNotice({ tone: 'info', text: 'Sent for approval' })
+        }
         patch(target.image_no, {
           done: true,
           checked_answer: answer,
@@ -339,7 +344,7 @@ function CheckQueue({
     return (
       <div className={`${box} flex flex-col items-center gap-4`}>
         <p className="text-[var(--foreground)]">
-          {photoOnly ? (records[0]?.done ? 'Saved.' : records.length ? 'Not changed.' : 'Photo not found.') : 'Nothing left for this filter'}
+          {photoOnly ? (records[0]?.done ? (trainee ? 'Sent for approval' : 'Saved.') : records.length ? 'Not changed.' : 'Photo not found.') : 'Nothing left for this filter'}
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           {records.length > 0 && (

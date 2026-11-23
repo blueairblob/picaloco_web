@@ -91,7 +91,8 @@ export interface CheckPhoto extends CheckRecord {
 }
 
 export type SaveOutcome =
-  | { ok: true; filled: string[]; conflicts: SaveConflict[] }
+  | { ok: true; filled: string[]; conflicts: SaveConflict[]; held?: false }
+  | { ok: true; held: true; filled: string[]; conflicts: SaveConflict[] }
   | { ok: false; reason: 'forbidden' | 'signed-out' | 'error'; message: string }
 
 export async function getTasks(): Promise<ModelTask[]> {
@@ -189,10 +190,10 @@ export async function saveModelAnswer(i: {
   mode: CheckMode
   shownRunId: number | null
   shownAnswer: string | null
-}): Promise<SaveOutcome> {
+}, opts?: { trainee?: boolean }): Promise<SaveOutcome> {
   try {
     const blind = i.mode === 'sample'
-    const { data, error, status } = await adminSupabase.rpc('save_model_answer', {
+    const { data, error, status } = await adminSupabase.rpc(opts?.trainee ? 'submit_model_answer' : 'save_model_answer', {
       p_task_id: i.taskId,
       p_image_no: i.imageNo,
       p_answer: i.answer,
@@ -205,6 +206,7 @@ export async function saveModelAnswer(i: {
       if (reason === 'forbidden' && !(await hasSession())) reason = 'signed-out'
       return { ok: false, reason: reason === 'stale' ? 'error' : reason, message: error.message }
     }
+    if (opts?.trainee) return { ok: true, held: true, filled: [], conflicts: [] }
     const row = (data ?? {}) as { filled?: string[]; conflicts?: SaveConflict[] }
     return { ok: true, filled: row.filled ?? [], conflicts: row.conflicts ?? [] }
   } catch (e) {

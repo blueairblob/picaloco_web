@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { readNavFrom } from '@/lib/navFrom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BulkConfirmGrid } from '@/components/admin/fixes/BulkConfirmGrid'
 import { QueueFilters } from '@/components/admin/fixes/QueueFilters'
 import { ReviewCard, type CardAction, type CardNotice, type CompanionView } from '@/components/admin/fixes/ReviewCard'
 import { PhotoSizeControl } from '@/components/admin/fixes/PhotoSizeControl'
 import { ReviewHelp } from '@/components/admin/fixes/ReviewHelp'
+import { useAdminSession } from '@/hooks/useAdminSession'
 import { useCompanions } from '@/hooks/useCompanions'
 import { useFixQueue, type QueueEntry } from '@/hooks/useFixQueue'
 import { usePhotoSize } from '@/hooks/usePhotoSize'
@@ -88,6 +89,9 @@ function ReviewQueue({
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const [notice, setNotice] = useState<CardNotice | null>(null)
+  const queryClient = useQueryClient()
+  const { status: sessionStatus, inTraining } = useAdminSession()
+  const trainee = sessionStatus === 'volunteer' && inTraining
   const [, rerender] = useReducer((n: number) => n + 1, 0)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -258,7 +262,13 @@ function ReviewQueue({
         values: decision.values,
         status: decision.status,
         expectedUpdatedAt: c.row.updated_at,
-      })
+      }, { trainee })
+      if (outcome.ok && outcome.held) {
+        // Held for approval: the record itself hasn't changed, so keep its updated_at.
+        reviewDrafts.delete(k)
+        saved.push(c.title)
+        continue
+      }
       if (outcome.ok) {
         const status: FixStatus = decision.status
         companionData.setRow(c.fixId, {
@@ -356,7 +366,21 @@ function ReviewQueue({
         values,
         status,
         expectedUpdatedAt: target.updated_at,
-      })
+      }, { trainee })
+      if (outcome.ok && outcome.held) {
+        // Held for approval: keep the record's previous updated_at, the server row is unchanged.
+        patch(target.image_no, {
+          status,
+          values: status === 'none_visible' || status === 'no_loco' ? [] : values,
+          needs_recheck: false,
+          done: true,
+        })
+        reviewDrafts.delete(targetKey)
+        setNotice({ tone: 'info', text: 'Sent for approval' })
+        queryClient.invalidateQueries({ queryKey: ['my-held'] })
+        setIndex(at + 1)
+        return
+      }
       if (outcome.ok) {
         patch(target.image_no, {
           status,

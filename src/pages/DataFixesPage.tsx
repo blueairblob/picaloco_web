@@ -1,4 +1,5 @@
 import { AdminSteps } from '@/components/admin/AdminSteps'
+import { HeldPanel } from '@/components/admin/HeldPanel'
 import { useQuery } from '@tanstack/react-query'
 import { FixProgressCard } from '@/components/admin/fixes/FixProgressCard'
 import { getFixes, getOrphans, getProgress, summariseProgress } from '@/services/dataFixService'
@@ -23,6 +24,8 @@ export function DataFixesPage() {
           Review loco numbers and names extracted from photo descriptions.
         </p>
       </div>
+
+      <HeldPanel />
 
       {isError && (
         <div className={box}>Something went wrong talking to the archive. Please try again.</div>

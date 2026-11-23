@@ -256,3 +256,42 @@ describe('getCompanionValues', () => {
     await expect(getCompanionValues('ab1', ['a'])).rejects.toBe(err)
   })
 })
+
+describe('trainee saves', () => {
+  beforeEach(() => {
+    rpc.mockReset()
+    getSession.mockResolvedValue({ data: { session: {} } })
+  })
+
+  it('trainee reviews go to submit_fix_review and come back held', async () => {
+    rpc.mockResolvedValue({ data: 7, error: null, status: 200 })
+    const out = await reviewValue(
+      { imageNo: 'arc1', fixId: 'loco_number', values: ['42'], status: 'verified', expectedUpdatedAt: '2026-11-14T22:05:01.123456+00:00' },
+      { trainee: true },
+    )
+    expect(rpc).toHaveBeenCalledWith('submit_fix_review', {
+      p_image_no: 'arc1',
+      p_fix_id: 'loco_number',
+      p_values: ['42'],
+      p_status: 'verified',
+      p_expected_updated_at: '2026-11-14T22:05:01.123456+00:00',
+    })
+    expect(out).toEqual({ ok: true, held: true })
+  })
+
+  it('trainee review keeps the stale mapping', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'stale' }, status: 409 })
+    const out = await reviewValue(
+      { imageNo: 'a', fixId: 'f', values: [], status: 'verified', expectedUpdatedAt: 'x' },
+      { trainee: true },
+    )
+    expect(out).toMatchObject({ ok: false, reason: 'stale' })
+  })
+
+  it('trainee confirmMany goes to submit_fix_confirm and returns the count', async () => {
+    rpc.mockResolvedValue({ data: 3, error: null })
+    const items = [{ image_no: 'a', updated_at: 'x' }]
+    expect(await confirmMany('loco_number', items, { trainee: true })).toBe(3)
+    expect(rpc).toHaveBeenCalledWith('submit_fix_confirm', { p_fix_id: 'loco_number', p_items: items })
+  })
+})
