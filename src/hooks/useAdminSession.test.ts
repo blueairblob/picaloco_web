@@ -1,17 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { adminStatusFrom } from './useAdminSession'
+import { roleStatusFrom } from '@/lib/roles'
 
-describe('adminStatusFrom', () => {
-  it('is signed-out without a session', () => {
-    expect(adminStatusFrom(false, null)).toBe('signed-out')
+// The hook derives its status through roleStatusFrom; its cases live in src/lib/roles.test.ts.
+describe('useAdminSession status', () => {
+  it('is loading while my_role is pending', () => {
+    expect(roleStatusFrom(true, undefined)).toBe('loading')
   })
-  it('is loading while the admin check is pending', () => {
-    expect(adminStatusFrom(true, null)).toBe('loading')
-  })
-  it('is not-admin when is_admin is false', () => {
-    expect(adminStatusFrom(true, false)).toBe('not-admin')
-  })
-  it('is admin when is_admin is true', () => {
-    expect(adminStatusFrom(true, true)).toBe('admin')
+  it('is no-access when my_role has no role', () => {
+    expect(roleStatusFrom(true, { role: null, in_training: null, must_change_password: null })).toBe('no-access')
   })
 })

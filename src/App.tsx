@@ -9,6 +9,7 @@ import { FixQueuePage } from '@/pages/FixQueuePage'
 import { ModelCheckPage } from '@/pages/ModelCheckPage'
 import { ModelCheckQueuePage } from '@/pages/ModelCheckQueuePage'
 import { RequireAdmin } from '@/components/admin/RequireAdmin'
+import { ComingSoon } from '@/components/admin/ComingSoon'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { useTextSize } from '@/hooks/useTextSize'
 
@@ -27,11 +28,14 @@ export function App() {
       <Routes>
         <Route path="/" element={<SearchPage />} />
         <Route path="/photo/:imageNo" element={<PhotoDetailPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/admin/fixes" element={<RequireAdmin><DataFixesPage /></RequireAdmin>} />
-        <Route path="/admin/fixes/:fixId" element={<RequireAdmin><FixQueuePage /></RequireAdmin>} />
-        <Route path="/admin/model-check" element={<RequireAdmin><ModelCheckPage /></RequireAdmin>} />
-        <Route path="/admin/model-check/:taskId" element={<RequireAdmin><ModelCheckQueuePage /></RequireAdmin>} />
+        <Route path="/admin" element={<RequireAdmin><AdminPage /></RequireAdmin>} />
+        <Route path="/admin/volunteers" element={<RequireAdmin><ComingSoon title="Volunteers" /></RequireAdmin>} />
+        <Route path="/admin/approvals" element={<RequireAdmin><ComingSoon title="Approvals" /></RequireAdmin>} />
+        <Route path="/admin/changes" element={<RequireAdmin><ComingSoon title="Changes" /></RequireAdmin>} />
+        <Route path="/admin/fixes" element={<RequireAdmin allowVolunteers><DataFixesPage /></RequireAdmin>} />
+        <Route path="/admin/fixes/:fixId" element={<RequireAdmin allowVolunteers><FixQueuePage /></RequireAdmin>} />
+        <Route path="/admin/model-check" element={<RequireAdmin allowVolunteers><ModelCheckPage /></RequireAdmin>} />
+        <Route path="/admin/model-check/:taskId" element={<RequireAdmin allowVolunteers><ModelCheckQueuePage /></RequireAdmin>} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </>

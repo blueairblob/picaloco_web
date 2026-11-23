@@ -4,7 +4,7 @@ import { useTheme, type Theme } from '@/hooks/useTheme'
 import { useTextSize } from '@/hooks/useTextSize'
 import { useAdminSession } from '@/hooks/useAdminSession'
 import type { TextSize } from '@/lib/textSize'
-import { ADMIN_STEPS } from '@/lib/adminWorkflow'
+import { menuSections } from '@/lib/roles'
 
 const THEMES: [Theme, string][] = [
   ['system', 'System'],
@@ -49,7 +49,7 @@ export function UserMenu() {
   const button = useRef<HTMLButtonElement>(null)
   const { theme, setTheme } = useTheme()
   const { textSize, setTextSize } = useTextSize()
-  const { status, email, signOut } = useAdminSession()
+  const { status, email, inTraining, signOut } = useAdminSession()
 
   useEffect(() => {
     if (!open) return
@@ -128,28 +128,29 @@ export function UserMenu() {
               Sign in (admin)
             </Link>
           )}
-          {(status === 'admin' || status === 'not-admin') && (
+          {(status === 'admin' || status === 'volunteer' || status === 'no-access') && (
             <div className="truncate px-3 py-1 text-sm text-[var(--muted)]" title={email ?? undefined}>
               {email}
             </div>
           )}
-          {status === 'admin' && (
-            <>
-              <div className={heading}>Archive workflow</div>
-              {ADMIN_STEPS.map((step, i) => (
+          {menuSections(status, inTraining).map((section) => (
+            <div key={section.title}>
+              <div className={heading}>{section.title}</div>
+              {section.items.map((step, i) => (
                 <Link key={step.path} to={step.path} role="menuitem" onClick={close} className={item}>
                   <span aria-hidden="true" className="flex size-5 items-center justify-center text-sm text-[var(--muted)]">
                     {i + 1}
                   </span>
                   <span className="flex flex-col py-1 leading-tight">
                     {step.label}
-                    <span className="text-xs text-[var(--muted)]">{step.hint}</span>
+                    {step.hint && <span className="text-xs text-[var(--muted)]">{step.hint}</span>}
                   </span>
                 </Link>
               ))}
-            </>
-          )}
-          {(status === 'admin' || status === 'not-admin') && (
+              {section.note && <p className="px-3 py-1 text-xs text-[var(--muted)]">{section.note}</p>}
+            </div>
+          ))}
+          {(status === 'admin' || status === 'volunteer' || status === 'no-access') && (
             <button
               type="button"
               role="menuitem"

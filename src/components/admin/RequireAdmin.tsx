@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import { useAdminSession } from '@/hooks/useAdminSession'
 import { SignInForm } from '@/components/admin/SignInForm'
+import { ChoosePasswordForm } from '@/components/admin/ChoosePasswordForm'
 
 const buttonClass =
   'rounded-lg border border-[var(--border)] px-3 py-1 text-sm text-[var(--foreground)] hover:text-[var(--accent)]'
 
-export function RequireAdmin({ children }: { children: ReactNode }) {
-  const { status, signIn, signOut } = useAdminSession()
+export function RequireAdmin({ children, allowVolunteers = false }: { children: ReactNode; allowVolunteers?: boolean }) {
+  const { status, mustChangePassword, signIn, signOut, refreshRole } = useAdminSession()
 
   if (status === 'loading') {
     return <div className="p-10 text-center text-[var(--muted)]">Loading…</div>
@@ -20,10 +21,18 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
     )
   }
 
-  if (status === 'not-admin') {
+  if (status === 'volunteer' && mustChangePassword) {
+    return (
+      <div className="flex flex-1 items-center px-6 py-10">
+        <ChoosePasswordForm onDone={refreshRole} />
+      </div>
+    )
+  }
+
+  if (status === 'no-access' || (status === 'volunteer' && !allowVolunteers)) {
     return (
       <div className="mx-auto flex max-w-sm flex-1 flex-col items-center gap-4 px-6 py-10 text-center">
-        <p className="text-[var(--foreground)]">This account isn't an admin.</p>
+        <p className="text-[var(--foreground)]">{status === 'volunteer' ? 'This page is for admins.' : "This account doesn't have access."}</p>
         <button type="button" onClick={signOut} className={buttonClass}>
           Sign out
         </button>

@@ -1,27 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { adminSupabase } from '@/lib/supabase/adminClient'
-
-export type AdminStatus = 'loading' | 'signed-out' | 'not-admin' | 'admin'
-
-export function adminStatusFrom(hasSession: boolean, isAdmin: boolean | null): AdminStatus {
-  if (!hasSession) return 'signed-out'
-  if (isAdmin === null) return 'loading'
-  return isAdmin ? 'admin' : 'not-admin'
-}
+import { roleStatusFrom, type MyRole, type RoleStatus } from '@/lib/roles'
 
 export function useAdminSession() {
   // undefined = session not read yet; null = signed out.
   const [userId, setUserId] = useState<string | null | undefined>(undefined)
   const [email, setEmail] = useState<string | null>(null)
-  // Result of is_admin, tagged with the user it was fetched for so a stale answer is never reused.
-  const [adminCheck, setAdminCheck] = useState<{ userId: string; isAdmin: boolean } | null>(null)
+  // Result of my_role, tagged with the user it was fetched for so a stale answer is never reused.
+  const [roleCheck, setRoleCheck] = useState<{ userId: string; role: MyRole | null } | null>(null)
+  const [refreshCount, setRefreshCount] = useState(0)
 
   useEffect(() => {
     const { data } = adminSupabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user.id ?? null)
       setEmail(session?.user.email ?? null)
-      // Drop the cached answer on sign-out so the next sign-in re-checks is_admin.
-      if (!session) setAdminCheck(null)
+      // Drop the cached answer on sign-out so the next sign-in re-checks the role.
+      if (!session) setRoleCheck(null)
     })
     return () => data.subscription.unsubscribe()
   }, [])
@@ -30,20 +24,20 @@ export function useAdminSession() {
     if (!userId) return
     let cancelled = false
     adminSupabase
-      .rpc('is_admin')
+      .rpc('my_role')
       .then(
-        ({ data, error }) => !error && data === true,
-        () => false,
+        ({ data, error }) => (error ? null : ((data as MyRole | null) ?? null)),
+        () => null,
       )
-      .then((isAdmin) => {
-        if (!cancelled) setAdminCheck({ userId, isAdmin })
+      .then((role) => {
+        if (!cancelled) setRoleCheck({ userId, role })
       })
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, refreshCount])
 
-  const isAdmin = adminCheck && adminCheck.userId === userId ? adminCheck.isAdmin : null
+  const myRole = roleCheck && roleCheck.userId === userId ? roleCheck.role : undefined
 
   const signIn = useCallback(async (emailInput: string, password: string) => {
     const { error } = await adminSupabase.auth.signInWithPassword({ email: emailInput, password })
@@ -54,6 +48,17 @@ export function useAdminSession() {
     await adminSupabase.auth.signOut()
   }, [])
 
-  const status: AdminStatus = userId === undefined ? 'loading' : adminStatusFrom(!!userId, isAdmin)
-  return { status, email, signIn, signOut }
+  // Re-runs my_role (e.g. after the first password is chosen).
+  const refreshRole = useCallback(() => setRefreshCount((n) => n + 1), [])
+
+  const status: RoleStatus = userId === undefined ? 'loading' : roleStatusFrom(!!userId, myRole)
+  return {
+    status,
+    email,
+    inTraining: myRole?.in_training === true,
+    mustChangePassword: myRole?.must_change_password === true,
+    signIn,
+    signOut,
+    refreshRole,
+  }
 }
