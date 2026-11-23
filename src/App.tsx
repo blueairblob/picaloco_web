@@ -28,7 +28,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<SearchPage />} />
         <Route path="/photo/:imageNo" element={<PhotoDetailPage />} />
-        <Route path="/admin" element={<RequireAdmin><AdminPage /></RequireAdmin>} />
+        <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/volunteers" element={<RequireAdmin><ComingSoon title="Volunteers" /></RequireAdmin>} />
         <Route path="/admin/approvals" element={<RequireAdmin><ComingSoon title="Approvals" /></RequireAdmin>} />
         <Route path="/admin/changes" element={<RequireAdmin><ComingSoon title="Changes" /></RequireAdmin>} />
