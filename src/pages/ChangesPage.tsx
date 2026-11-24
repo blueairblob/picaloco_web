@@ -78,7 +78,7 @@ export function ChangesPage() {
   const rows = [...(first.data ?? []), ...extraRows]
   const lastPage = extra && extra.key === filterKey ? extra.last : (first.data?.length ?? 0)
   const more = lastPage >= 100
-  const loading = first.isFetching || loadingMore
+  const loading = first.isFetching || loadingMore || fixes.isPending || tasks.isPending
   const error = rangeError ?? loadError ?? (first.isError ? 'Could not load the changes. Try again.' : null)
 
   const answerLabels = useMemo(() => {
@@ -165,6 +165,9 @@ export function ChangesPage() {
               </option>
             ))}
           </select>
+          {(fixes.isError || tasks.isError) && (
+            <span role="alert" className="text-xs text-red-600">Couldn't load the question list.</span>
+          )}
         </label>
         <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
           Person

@@ -16,8 +16,6 @@ export function useModalDialog(
   focus?: {
     // Element to focus on open instead of the first one (null falls back to the first).
     initialFocus?: () => HTMLElement | null
-    // Return false to skip restoring focus on cleanup (another dialog is taking over).
-    restoreFocus?: () => boolean
   },
 ) {
   const ref = useRef<HTMLDivElement | null>(null)

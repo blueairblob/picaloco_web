@@ -660,4 +660,4 @@ unchanged since. `rat.change_list` feeds the Changes page.
 `rat.pending_model_answer` join `rat.data_fix*` and `rat.model_answer`: restore from backup, never
 rebuild.
 
-**Changes page question filter.** It needs the re-applied `supabase/schema/add_volunteer_tables.sql` (the updated `rat.change_list`) on `oci`; until then the filter has nothing to call.
+**Changes page question filter.** It needs the re-applied `supabase/schema/add_volunteer_tables.sql` (the updated `rat.change_list`) on `oci`; until it is applied the whole Changes page fails to load ("Could not load the changes"), because the web always sends the new `p_fix_id`/`p_task_id` arguments and PostgREST finds no matching function. Apply the SQL on `oci` before deploying the web.

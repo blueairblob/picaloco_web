@@ -24,13 +24,11 @@ export function MenuPanel({
   onClose: () => void
   returnFocusTo?: RefObject<HTMLElement | null>
 }) {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const { status, email, inTraining, signOut } = useAdminSession()
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Settings sits on top of the panel; Escape and the focus trap belong to whichever is on top.
   const settingsButton = useRef<HTMLButtonElement>(null)
-  // Focus hand-off between the panel and Settings (read by the panel's hook when it re-runs).
-  const settingsActive = useRef(false)
   const settingsJustClosed = useRef(false)
   const ref = useModalDialog(open && !settingsOpen, onClose, returnFocusTo, {
     initialFocus: () => {
@@ -38,11 +36,7 @@ export function MenuPanel({
       settingsJustClosed.current = false
       return settingsButton.current
     },
-    restoreFocus: () => !settingsActive.current,
   })
-  useEffect(() => {
-    if (!open) settingsActive.current = false // panel closed while Settings was up
-  }, [open])
   // Closing the panel by any route (Menu button, back, backdrop) forgets Settings.
   if (!open && settingsOpen) {
     setSettingsOpen(false)
@@ -51,11 +45,12 @@ export function MenuPanel({
   const people = useQuery({ queryKey: ['people'], queryFn: listPeople, enabled: status === 'admin' })
   const heldTotal = (people.data ?? []).reduce((n, p) => n + p.held_count, 0)
 
-  const prev = useRef(pathname)
+  const here = pathname + search
+  const prev = useRef(here)
   useEffect(() => {
-    if (shouldCloseOnRoute(prev.current, pathname)) onClose()
-    prev.current = pathname
-  }, [pathname, onClose])
+    if (shouldCloseOnRoute(prev.current, here)) onClose()
+    prev.current = here
+  }, [here, onClose])
 
   const link = (to: string) => ({ to, onClick: onClose, className: item, 'aria-current': isCurrent(to, pathname) ? ('page' as const) : undefined })
   const signedIn = status === 'admin' || status === 'volunteer' || status === 'no-access' || status === 'error'
@@ -108,7 +103,6 @@ export function MenuPanel({
 
             <div className="my-2 border-t border-[var(--border)]" role="separator" />
             <button ref={settingsButton} type="button" onClick={() => {
-                settingsActive.current = true
                 setSettingsOpen(true)
               }} className={item}>
               Settings
@@ -137,7 +131,6 @@ export function MenuPanel({
         </div>
       )}
       <SettingsDialog open={open && settingsOpen} onClose={() => {
-          settingsActive.current = false
           settingsJustClosed.current = true
           setSettingsOpen(false)
         }}
