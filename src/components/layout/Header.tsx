@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MenuPanel } from './MenuPanel'
 
@@ -6,6 +6,7 @@ const PANEL_ID = 'site-menu-panel'
 
 export function Header() {
   const [open, setOpen] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
   const close = useCallback(() => setOpen(false), [])
   return (
     <header className="site-header border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur sticky top-0 z-10">
@@ -14,6 +15,7 @@ export function Header() {
           RAT Photo Archive
         </Link>
         <button
+          ref={button}
           type="button"
           aria-expanded={open}
           aria-controls={PANEL_ID}
@@ -25,7 +27,7 @@ export function Header() {
           </svg>
           Menu
         </button>
-        <MenuPanel id={PANEL_ID} open={open} onClose={close} />
+        <MenuPanel id={PANEL_ID} open={open} onClose={close} returnFocusTo={button} />
       </div>
     </header>
   )

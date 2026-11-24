@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { useTheme, type Theme } from '@/hooks/useTheme'
 import { useTextSize } from '@/hooks/useTextSize'
 import { useModalDialog } from '@/hooks/useModalDialog'
@@ -40,8 +40,16 @@ function Choice({ on, onPick, children }: { on: boolean; onPick: () => void; chi
   )
 }
 
-export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const ref = useModalDialog(open, onClose)
+export function SettingsDialog({
+  open,
+  onClose,
+  returnFocusTo,
+}: {
+  open: boolean
+  onClose: () => void
+  returnFocusTo?: RefObject<HTMLElement | null>
+}) {
+  const ref = useModalDialog(open, onClose, returnFocusTo)
   const { theme, setTheme } = useTheme()
   const { textSize, setTextSize } = useTextSize()
   if (!open) return null

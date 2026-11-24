@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -13,12 +13,25 @@ const item =
   'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-base text-[var(--foreground)] no-underline hover:bg-[var(--background)] hover:text-[var(--accent)] aria-[current=page]:font-semibold aria-[current=page]:text-[var(--accent)]'
 const heading = 'px-3 pt-2 pb-1 text-xs font-medium uppercase tracking-wide text-[var(--muted)]'
 
-export function MenuPanel({ id, open, onClose }: { id: string; open: boolean; onClose: () => void }) {
+export function MenuPanel({
+  id,
+  open,
+  onClose,
+  returnFocusTo,
+}: {
+  id: string
+  open: boolean
+  onClose: () => void
+  returnFocusTo?: RefObject<HTMLElement | null>
+}) {
   const { pathname } = useLocation()
   const { status, email, inTraining, signOut } = useAdminSession()
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Settings sits on top of the panel; Escape and the focus trap belong to whichever is on top.
-  const ref = useModalDialog(open && !settingsOpen, onClose)
+  const settingsButton = useRef<HTMLButtonElement>(null)
+  const ref = useModalDialog(open && !settingsOpen, onClose, returnFocusTo)
+  // Closing the panel by any route (Menu button, back, backdrop) forgets Settings.
+  if (!open && settingsOpen) setSettingsOpen(false)
   // Same key as the Volunteers page, so the count and that page share one fetch.
   const people = useQuery({ queryKey: ['people'], queryFn: listPeople, enabled: status === 'admin' })
   const heldTotal = (people.data ?? []).reduce((n, p) => n + p.held_count, 0)
@@ -79,7 +92,7 @@ export function MenuPanel({ id, open, onClose }: { id: string; open: boolean; on
             ))}
 
             <div className="my-2 border-t border-[var(--border)]" role="separator" />
-            <button type="button" onClick={() => setSettingsOpen(true)} className={item}>
+            <button ref={settingsButton} type="button" onClick={() => setSettingsOpen(true)} className={item}>
               Settings
             </button>
 
@@ -105,7 +118,7 @@ export function MenuPanel({ id, open, onClose }: { id: string; open: boolean; on
           </div>
         </div>
       )}
-      <SettingsDialog open={open && settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsDialog open={open && settingsOpen} onClose={() => setSettingsOpen(false)} returnFocusTo={settingsButton} />
     </>,
     document.body,
   )
