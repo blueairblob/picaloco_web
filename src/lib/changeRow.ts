@@ -62,7 +62,7 @@ export function bulkUndoRows(rows: ChangeRow[], mode: ShowMode): ChangeRow[] {
   return rows.filter((r) => {
     if (!describeChange(r).canUndo) return false
     if (r.kind === 'fix_undo') return mode === 'undos'
-    if (r.kind === 'answer_withdrawn') return mode !== 'undos'
+    if (r.kind === 'answer_withdrawn') return false
     return true
   })
 }

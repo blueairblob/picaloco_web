@@ -77,6 +77,7 @@ describe('bulkUndoRows', () => {
   it('takes undo rows only in undos mode, never withdrawn answers', () => {
     const w = { ...base, cursor: 'w', kind: 'answer_withdrawn', ref_id: 4 }
     expect(ids(bulkUndoRows([h, u, w], 'undos'))).toEqual([2])
+    expect(ids(bulkUndoRows([h, u, w], 'all'))).toEqual([])
   })
   it('keeps single-row undo of an undo row available', () => {
     expect(describeChange(u).canUndo).toBe(true)

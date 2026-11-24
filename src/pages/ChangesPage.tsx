@@ -13,6 +13,23 @@ import {
   parseQuestionKey, questionKey, questionOptions, questionParams, showKinds, SHOW_OPTIONS, type ShowMode,
 } from '@/lib/changeFilters'
 import { personLabel } from '@/lib/personLabel'
+import { cellText, headings, statusText, tableMode } from '@/lib/changeTable'
+import { getThumbnailUrl } from '@/services/images'
+
+function PhotoLink({ imageNo }: { imageNo: string | null }) {
+  if (!imageNo) return <span className="text-[var(--muted)]">—</span>
+  return (
+    <a
+      href={`/photo/${encodeURIComponent(imageNo)}`}
+      target="_blank"
+      rel="noopener"
+      className="flex items-center gap-2 text-[var(--accent)] hover:underline"
+    >
+      <img src={getThumbnailUrl(imageNo)} alt="" width={48} className="w-12 rounded" loading="lazy" />
+      <span>{imageNo}</span>
+    </a>
+  )
+}
 
 const box = 'rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6'
 const btn =
@@ -63,6 +80,14 @@ export function ChangesPage() {
   const more = lastPage >= 100
   const loading = first.isFetching || loadingMore
   const error = rangeError ?? loadError ?? (first.isError ? 'Could not load the changes. Try again.' : null)
+
+  const answerLabels = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const t of tasks.data ?? []) for (const a of t.answers) m.set(a.id, a.label)
+    return m
+  }, [tasks.data])
+  const answerLabel = (id: string) => answerLabels.get(id)
+  const head = headings(question)
 
   const emailOf = (id: string | null) =>
     id ? personLabel(people.data, id, 'Unknown user', people.isError) : '—'
@@ -119,7 +144,7 @@ export function ChangesPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
       <div>
         <AdminSteps />
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">Changes</h1>
@@ -213,41 +238,94 @@ export function ChangesPage() {
         </div>
       )}
 
-      {!loading && !error && rows.length === 0 && <p className="text-sm text-[var(--muted)]">No changes match.</p>}
+      {tableMode(loading, !!error, rows.length) === 'empty' && (
+        <p className="text-sm text-[var(--muted)]">No changes match.</p>
+      )}
 
-      <ul className="flex flex-col gap-4">
-        {rows.map((r) => {
-          const d = describeChange(r)
-          return (
-            <li key={r.cursor} className="flex flex-col gap-1 border-t border-[var(--border)] pt-4">
-              <p className="text-sm font-medium text-[var(--foreground)]">
-                {d.what}
-                {r.image_no && <span className="font-normal text-[var(--muted)]"> · {r.image_no}</span>}
-              </p>
-              <p className="text-xs text-[var(--muted)]">
-                {new Date(r.at).toLocaleString()} · {emailOf(r.by_user)}
-                {r.approved_by && ` · approved by ${emailOf(r.approved_by)}`}
-                {r.undone && ' · undone'}
-              </p>
-              <p className="text-sm text-[var(--foreground)]">
-                {d.before && (
-                  <>
-                    {d.before} <span aria-hidden="true">→</span>{' '}
-                  </>
-                )}
-                {d.after}
-              </p>
-              {d.canUndo && (
-                <div>
-                  <button type="button" className={btn} disabled={busy || loadingMore} onClick={() => void undo([r])}>
-                    Undo
-                  </button>
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+      {rows.length > 0 && (
+        <>
+          <table className="hidden w-full text-left text-sm sm:table">
+            <thead>
+              <tr className="text-[var(--muted)]">
+                <th className="py-2 pr-3 font-medium">Photo</th>
+                {head.showQuestion && <th className="py-2 pr-3 font-medium">Question</th>}
+                <th className="py-2 pr-3 font-medium">{head.then}</th>
+                <th className="py-2 pr-3 font-medium">{head.now}</th>
+                <th className="py-2 pr-3 font-medium">By / when</th>
+                <th className="py-2 pr-3 font-medium">Status</th>
+                <th className="py-2 font-medium">
+                  <span className="sr-only">Undo</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const c = cellText(r, answerLabel)
+                return (
+                  <tr
+                    key={r.cursor}
+                    className={`border-t border-[var(--border)] align-top ${r.undone ? 'text-[var(--muted)]' : 'text-[var(--foreground)]'}`}
+                  >
+                    <td className="py-3 pr-3">
+                      <PhotoLink imageNo={r.image_no} />
+                    </td>
+                    {head.showQuestion && <td className="py-3 pr-3">{r.subject}</td>}
+                    <td className="py-3 pr-3">{c.then}</td>
+                    <td className="py-3 pr-3">{c.now}</td>
+                    <td className="py-3 pr-3 text-xs">
+                      {emailOf(r.by_user)}
+                      <br />
+                      {new Date(r.at).toLocaleString()}
+                    </td>
+                    <td className="py-3 pr-3">{statusText(r, emailOf)}</td>
+                    <td className="py-3">
+                      {describeChange(r).canUndo && (
+                        <button type="button" className={btn} disabled={busy || loadingMore} onClick={() => void undo([r])}>
+                          Undo
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          <ul className="flex flex-col gap-4 sm:hidden">
+            {rows.map((r) => {
+              const c = cellText(r, answerLabel)
+              const st = statusText(r, emailOf)
+              return (
+                <li
+                  key={r.cursor}
+                  className={`flex flex-col gap-2 border-t border-[var(--border)] pt-4 text-sm ${r.undone ? 'text-[var(--muted)]' : 'text-[var(--foreground)]'}`}
+                >
+                  <PhotoLink imageNo={r.image_no} />
+                  {head.showQuestion && r.subject && <p>{r.subject}</p>}
+                  <p>
+                    {c.then && (
+                      <>
+                        {c.then} <span aria-hidden="true">→</span>{' '}
+                      </>
+                    )}
+                    {c.now}
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    {emailOf(r.by_user)} · {new Date(r.at).toLocaleString()}
+                    {st && ` · ${st}`}
+                  </p>
+                  {describeChange(r).canUndo && (
+                    <div>
+                      <button type="button" className={btn} disabled={busy || loadingMore} onClick={() => void undo([r])}>
+                        Undo
+                      </button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
 
       {more && (
         <div>
