@@ -34,6 +34,15 @@ describe('cellText', () => {
     expect(cellText({ ...base, kind: 'answer_withdrawn', after: { note: 'oops' } })).toEqual({ then: '', now: 'oops' })
     expect(cellText({ ...base, kind: 'answer_withdrawn', after: null })).toEqual({ then: '', now: '' })
   })
+  it('held model answers, decided by source table', () => {
+    const lab = (id: string) => (id === 'a2' ? 'Diesel' : id === 'a1' ? 'Steam' : undefined)
+    const mk = (kind: string, b: ChangeRow['before'], a: ChangeRow['after']): ChangeRow =>
+      ({ ...base, kind, ref_table: 'pending_model_answer', before: b, after: a })
+    expect(cellText(mk('held_submitted', { shown_answer: 'a2' }, { answer: 'a1', mode: 'review' }), lab)).toEqual({ then: 'Diesel', now: 'Steam' })
+    expect(cellText(mk('held_approved', { shown_answer: null }, { answer: 'a1', mode: 'sample' }), lab)).toEqual({ then: 'blind', now: 'Steam' })
+    // no usable payload: the source table alone says this is an answer (RED on the shape-only check)
+    expect(cellText(mk('held_submitted', null, null), lab)).toEqual({ then: 'blind', now: '' })
+  })
   it('held fix', () => {
     const r = { ...base, kind: 'held_submitted', before: { values: ['1'], status: 'extracted' }, after: { values: ['2'], status: 'corrected' } }
     expect(cellText(r)).toEqual({ then: 'Suggested 1', now: 'Corrected 2' })

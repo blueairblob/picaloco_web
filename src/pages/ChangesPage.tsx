@@ -244,16 +244,17 @@ export function ChangesPage() {
 
       {rows.length > 0 && (
         <>
-          <table className="hidden w-full text-left text-sm sm:table">
+          <div className="hidden overflow-x-auto sm:block">
+          <table className="w-full text-left text-sm">
             <thead>
               <tr className="text-[var(--muted)]">
-                <th className="py-2 pr-3 font-medium">Photo</th>
-                {head.showQuestion && <th className="py-2 pr-3 font-medium">Question</th>}
-                <th className="py-2 pr-3 font-medium">{head.then}</th>
-                <th className="py-2 pr-3 font-medium">{head.now}</th>
-                <th className="py-2 pr-3 font-medium">By / when</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 font-medium">
+                <th scope="col" className="py-2 pr-3 font-medium">Photo</th>
+                {head.showQuestion && <th scope="col" className="py-2 pr-3 font-medium">Question</th>}
+                <th scope="col" className="py-2 pr-3 font-medium">{head.then}</th>
+                <th scope="col" className="py-2 pr-3 font-medium">{head.now}</th>
+                <th scope="col" className="py-2 pr-3 font-medium">By / when</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Status</th>
+                <th scope="col" className="py-2 font-medium">
                   <span className="sr-only">Undo</span>
                 </th>
               </tr>
@@ -290,6 +291,7 @@ export function ChangesPage() {
               })}
             </tbody>
           </table>
+          </div>
           <ul className="flex flex-col gap-4 sm:hidden">
             {rows.map((r) => {
               const c = cellText(r, answerLabel)
@@ -297,7 +299,7 @@ export function ChangesPage() {
               return (
                 <li
                   key={r.cursor}
-                  className={`flex flex-col gap-2 border-t border-[var(--border)] pt-4 text-sm ${r.undone ? 'text-[var(--muted)]' : 'text-[var(--foreground)]'}`}
+                  className={`flex flex-col gap-2 break-words border-t border-[var(--border)] pt-4 text-sm ${r.undone ? 'text-[var(--muted)]' : 'text-[var(--foreground)]'}`}
                 >
                   <PhotoLink imageNo={r.image_no} />
                   {head.showQuestion && r.subject && <p>{r.subject}</p>}

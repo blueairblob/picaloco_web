@@ -26,7 +26,10 @@ export function cellText(
   if (row.kind === 'answer_withdrawn') {
     return { then: '', now: a && typeof a.note === 'string' ? a.note : '' }
   }
-  const isAnswer = row.kind === 'answer' || (b && 'shown_answer' in b) || (a && 'answer' in a)
+  const isAnswer =
+    row.kind === 'answer' ||
+    row.ref_table === 'pending_model_answer' ||
+    (row.ref_table === null && !!((b && 'shown_answer' in b) || (a && 'answer' in a)))
   if (isAnswer) {
     const shown = b && typeof b.shown_answer === 'string' && b.shown_answer ? label(b.shown_answer) : 'blind'
     const ans = a && typeof a.answer === 'string' ? label(a.answer) : ''
