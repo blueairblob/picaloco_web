@@ -53,7 +53,7 @@ A photo number that doesn't exist returns no search row and HTTP 400 for the pho
 
 ## Who sees what (Part 1, step 4)
 
-After Menu, then Sign in (admin):
+The Menu button opens a slide-in panel from the left (Search the archive, Archive workflow, People, Settings, Account). Text size and theme are under Settings. After Menu, then Sign in (admin):
 - Admins see Data Fixes, then Model check, plus People: Volunteers (add, reset password, training on/off, remove access), Approvals (held trainee work) and Changes (list of changes, with undo).
 - AI volunteers see only Data fixes and Model check. A new volunteer must set their own password at first sign-in. While "in training" is on, their saves wait on Approvals.
 - Migration status (`/admin`) needs no sign-in; the FileMaker GUI's "Open Admin Dashboard" links to it.

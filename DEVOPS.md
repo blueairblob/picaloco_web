@@ -659,3 +659,5 @@ unchanged since. `rat.change_list` feeds the Changes page.
 **Irreplaceable (Golden Rule 7).** `rat.model_answer_withdrawal`, `rat.pending_fix_review` and
 `rat.pending_model_answer` join `rat.data_fix*` and `rat.model_answer`: restore from backup, never
 rebuild.
+
+**Changes page question filter.** It needs the re-applied `supabase/schema/add_volunteer_tables.sql` (the updated `rat.change_list`) on `oci`; until then the filter has nothing to call.

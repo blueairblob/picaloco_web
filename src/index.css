@@ -137,3 +137,20 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+@keyframes menu-panel-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.menu-panel-in {
+  animation: menu-panel-in 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-panel-in {
+    animation: none;
+  }
+}
