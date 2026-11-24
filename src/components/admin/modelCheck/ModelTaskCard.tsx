@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { INPUT_CLASS } from '@/components/search/filterFields'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { formatAccuracy, serializeCheckParams, type CheckMode } from '@/lib/modelCheckParams'
@@ -69,7 +70,7 @@ export function ModelTaskCard({ task, progress, fixes }: Props) {
             <select
               value={run.id}
               onChange={(e) => setPicked(Number(e.target.value))}
-              className="ml-1 min-h-11 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 text-base text-[var(--foreground)]"
+              className={`${INPUT_CLASS} ml-1 min-h-11 !w-auto`}
             >
               {(runs.data ?? []).map((r) => (
                 <option key={r.id} value={r.id}>

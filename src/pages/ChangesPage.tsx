@@ -3,15 +3,21 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AdminSteps } from '@/components/admin/AdminSteps'
 import { listPeople } from '@/services/volunteerService'
 import { listChanges, undoRows, PartialUndoError } from '@/services/changeService'
-import { bulkUndoRows, describeChange, excludedUndoCount, KIND_LABEL, type ChangeRow } from '@/lib/changeRow'
+import { bulkUndoRows, describeChange, excludedUndoCount, type ChangeRow } from '@/lib/changeRow'
 import { batchSummaryText } from '@/lib/chunk'
 import { dateRangeError, dayStart } from '@/lib/dateRange'
+import { INPUT_CLASS } from '@/components/search/filterFields'
+import { getFixes } from '@/services/dataFixService'
+import { getTasks } from '@/services/modelCheckService'
+import {
+  parseQuestionKey, questionKey, questionOptions, questionParams, showKinds, SHOW_OPTIONS, type ShowMode,
+} from '@/lib/changeFilters'
 import { personLabel } from '@/lib/personLabel'
 
 const box = 'rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6'
 const btn =
   'rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--foreground)] hover:border-[var(--accent)] disabled:opacity-50'
-const field = 'rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-[var(--foreground)]'
+const field = INPUT_CLASS
 
 export function ChangesPage() {
   const qc = useQueryClient()
@@ -19,7 +25,15 @@ export function ChangesPage() {
   const [userId, setUserId] = useState('')
   const [fromDay, setFromDay] = useState('')
   const [toDay, setToDay] = useState('')
-  const [kind, setKind] = useState('')
+  const [show, setShow] = useState<ShowMode>('all')
+  const [questionPick, setQuestionPick] = useState<string | null>(null)
+  const fixes = useQuery({ queryKey: ['fixes'], queryFn: getFixes })
+  const tasks = useQuery({ queryKey: ['model-tasks'], queryFn: getTasks })
+  const options = useMemo(
+    () => questionOptions(fixes.data ?? [], tasks.data ?? []),
+    [fixes.data, tasks.data],
+  )
+  const question = parseQuestionKey(questionPick ?? questionKey(options[0]), options)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadError, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
@@ -33,14 +47,15 @@ export function ChangesPage() {
       userId: userId || undefined,
       from: dayStart(fromDay),
       to: dayStart(toDay, 1),
-      kinds: kind ? [kind] : undefined,
+      kinds: showKinds(show),
+      ...questionParams(question),
     }),
-    [userId, fromDay, toDay, kind],
+    [userId, fromDay, toDay, show, question],
   )
 
   const filterKey = JSON.stringify(filters)
   const rangeError = dateRangeError(fromDay, toDay)
-  const first = useQuery({ queryKey: ['changes', filterKey], queryFn: () => listChanges(filters), enabled: !rangeError })
+  const first = useQuery({ queryKey: ['changes', filterKey], queryFn: () => listChanges(filters), enabled: !rangeError && !fixes.isPending && !tasks.isPending })
   const [extra, setExtra] = useState<{ key: string; rows: ChangeRow[]; last: number } | null>(null)
   const extraRows = extra && extra.key === filterKey ? extra.rows : []
   const rows = [...(first.data ?? []), ...extraRows]
@@ -52,8 +67,8 @@ export function ChangesPage() {
   const emailOf = (id: string | null) =>
     id ? personLabel(people.data, id, 'Unknown user', people.isError) : '—'
   const filteredEmail = userId ? personLabel(people.data, userId, userId, people.isError) : 'everyone'
-  const undoable = bulkUndoRows(rows, filters.kinds)
-  const excludedUndos = excludedUndoCount(rows, filters.kinds)
+  const undoable = bulkUndoRows(rows, show)
+  const excludedUndos = excludedUndoCount(rows, show)
 
   function resetList() {
     gen.current++
@@ -61,7 +76,7 @@ export function ChangesPage() {
     setExtra(null)
   }
   // Every filter change starts a fresh list: drop stale errors, results and an open confirmation.
-  function changeFilter(set: (v: string) => void, v: string) {
+  function changeFilter<T>(set: (v: T) => void, v: T) {
     set(v)
     resetList()
     setError(null)
@@ -113,6 +128,20 @@ export function ChangesPage() {
 
       <div className="flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
+          Question
+          <select
+            className={field}
+            value={questionKey(question)}
+            onChange={(e) => changeFilter(setQuestionPick, e.target.value)}
+          >
+            {options.map((o) => (
+              <option key={questionKey(o)} value={questionKey(o)}>
+                {o.kind === 'all' ? 'All questions' : o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
           Person
           <select className={field} value={userId} onChange={(e) => changeFilter(setUserId, e.target.value)}>
             <option value="">Everyone</option>
@@ -132,11 +161,10 @@ export function ChangesPage() {
           <input type="date" className={field} value={toDay} onChange={(e) => changeFilter(setToDay, e.target.value)} />
         </label>
         <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
-          Kind
-          <select className={field} value={kind} onChange={(e) => changeFilter(setKind, e.target.value)}>
-            <option value="">All kinds</option>
-            {Object.entries(KIND_LABEL).map(([k, l]) => (
-              <option key={k} value={k}>
+          Show
+          <select className={field} value={show} onChange={(e) => changeFilter(setShow, e.target.value as ShowMode)}>
+            {SHOW_OPTIONS.map(([m, l]) => (
+              <option key={m} value={m}>
                 {l}
               </option>
             ))}

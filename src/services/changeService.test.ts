@@ -20,14 +20,19 @@ describe('listChanges', () => {
     rpc.mockResolvedValue({ data: [{ ...row(1, 'data_fix_history'), ref_id: '7' }], error: null })
     const r = await listChanges({ userId: 'u1', from: 'f', to: 't', kinds: ['answer'] }, 'cur')
     expect(rpc).toHaveBeenCalledWith('change_list', {
-      p_user: 'u1', p_from: 'f', p_to: 't', p_kinds: ['answer'], p_after: 'cur', p_limit: 100,
+      p_user: 'u1', p_from: 'f', p_to: 't', p_kinds: ['answer'], p_after: 'cur', p_limit: 100, p_fix_id: null, p_task_id: null,
     })
     expect(r[0].ref_id).toBe(7)
+  })
+  it('sends the question ids', async () => {
+    rpc.mockResolvedValue({ data: [], error: null })
+    await listChanges({ fixId: 'loco', taskId: 't1' })
+    expect(rpc).toHaveBeenCalledWith('change_list', expect.objectContaining({ p_fix_id: 'loco', p_task_id: 't1' }))
   })
   it('sends nulls when unfiltered; throws on error', async () => {
     rpc.mockResolvedValue({ data: null, error: null })
     await listChanges({})
-    expect(rpc).toHaveBeenCalledWith('change_list', { p_user: null, p_from: null, p_to: null, p_kinds: null, p_after: null, p_limit: 100 })
+    expect(rpc).toHaveBeenCalledWith('change_list', { p_user: null, p_from: null, p_to: null, p_kinds: null, p_after: null, p_limit: 100, p_fix_id: null, p_task_id: null })
     rpc.mockResolvedValue({ data: null, error: new Error('x') })
     await expect(listChanges({})).rejects.toThrow()
   })

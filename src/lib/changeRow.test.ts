@@ -69,13 +69,14 @@ describe('bulkUndoRows', () => {
   const ids = (rows: ChangeRow[]) => rows.map((r) => r.ref_id)
 
   it('leaves undo rows out by default, so an undone change is not re-applied', () => {
-    expect(ids(bulkUndoRows([h, u, x], undefined))).toEqual([3])
+    expect(ids(bulkUndoRows([h, u, x], 'all'))).toEqual([3])
   })
   it('leaves undo rows out for any other kind filter', () => {
-    expect(ids(bulkUndoRows([h, u, x], ['fix_review']))).toEqual([3])
+    expect(ids(bulkUndoRows([h, u, x], 'reviews'))).toEqual([3])
   })
-  it('takes undo rows only when the kind filter is exactly fix_undo', () => {
-    expect(ids(bulkUndoRows([h, u], ['fix_undo']))).toEqual([2])
+  it('takes undo rows only in undos mode, never withdrawn answers', () => {
+    const w = { ...base, cursor: 'w', kind: 'answer_withdrawn', ref_id: 4 }
+    expect(ids(bulkUndoRows([h, u, w], 'undos'))).toEqual([2])
   })
   it('keeps single-row undo of an undo row available', () => {
     expect(describeChange(u).canUndo).toBe(true)
@@ -85,7 +86,7 @@ describe('bulkUndoRows', () => {
 describe('excludedUndoCount', () => {
   const u = { ...base, kind: 'fix_undo', ref_id: 2 }
   it('counts undoable undo rows left out', () => {
-    expect(excludedUndoCount([base, u, { ...u, undone: true }], undefined)).toBe(1)
+    expect(excludedUndoCount([base, u, { ...u, undone: true }], 'all')).toBe(1)
   })
-  it('is 0 when filtering to undos only', () => expect(excludedUndoCount([u], ['fix_undo'])).toBe(0))
+  it('is 0 in undos mode', () => expect(excludedUndoCount([u], 'undos')).toBe(0))
 })

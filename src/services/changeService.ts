@@ -7,6 +7,8 @@ export interface ChangeFilters {
   from?: string
   to?: string
   kinds?: string[]
+  fixId?: string
+  taskId?: string
 }
 
 const PAGE = 100
@@ -20,6 +22,8 @@ export async function listChanges(f: ChangeFilters, after?: string): Promise<Cha
     p_kinds: f.kinds && f.kinds.length > 0 ? f.kinds : null,
     p_after: after ?? null,
     p_limit: PAGE,
+    p_fix_id: f.fixId ?? null,
+    p_task_id: f.taskId ?? null,
   })
   if (error) throw error
   return ((data ?? []) as Array<Omit<ChangeRow, 'ref_id'> & { ref_id: number | string | null }>).map((r) => ({

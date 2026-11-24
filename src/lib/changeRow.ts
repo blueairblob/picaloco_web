@@ -1,4 +1,5 @@
 import { STATUS_LABEL } from '@/lib/fixStatusLabel'
+import type { ShowMode } from '@/lib/changeFilters'
 import type { FixStatus } from '@/services/dataFixService'
 
 export interface ChangeRow {
@@ -54,16 +55,19 @@ export function describeChange(row: ChangeRow): { what: string; before: string; 
   return { what, before: fixText(b), after: `${fixText(a)}${note}`, canUndo }
 }
 
-// The rows "Undo all" sends. Undo rows are left out unless the kind filter is
-// exactly ['fix_undo']: undoing an undo re-applies the change it undid, and an
-// already-undone change is listed beside its live undo row.
-export function bulkUndoRows(rows: ChangeRow[], kinds: string[] | undefined): ChangeRow[] {
-  const undoOnly = kinds?.length === 1 && kinds[0] === 'fix_undo'
-  return rows.filter((r) => describeChange(r).canUndo && (undoOnly || r.kind !== 'fix_undo'))
+// The rows "Undo all" sends. Undo rows are left out unless Show is "Undos":
+// undoing an undo re-applies the change it undid, and an already-undone change
+// is listed beside its live undo row. Withdrawn answers are never bulk-undone.
+export function bulkUndoRows(rows: ChangeRow[], mode: ShowMode): ChangeRow[] {
+  return rows.filter((r) => {
+    if (!describeChange(r).canUndo) return false
+    if (r.kind === 'fix_undo') return mode === 'undos'
+    if (r.kind === 'answer_withdrawn') return mode !== 'undos'
+    return true
+  })
 }
 
 // How many undoable undo rows "Undo all" leaves out (see bulkUndoRows).
-export function excludedUndoCount(rows: ChangeRow[], kinds: string[] | undefined): number {
-  const undoOnly = kinds?.length === 1 && kinds[0] === 'fix_undo'
-  return undoOnly ? 0 : rows.filter((r) => r.kind === 'fix_undo' && describeChange(r).canUndo).length
+export function excludedUndoCount(rows: ChangeRow[], mode: ShowMode): number {
+  return mode === 'undos' ? 0 : rows.filter((r) => r.kind === 'fix_undo' && describeChange(r).canUndo).length
 }
