@@ -133,7 +133,7 @@ export function UserMenu() {
               Sign in (admin)
             </Link>
           )}
-          {(status === 'admin' || status === 'volunteer' || status === 'no-access') && (
+          {(status === 'admin' || status === 'volunteer' || status === 'no-access' || status === 'error') && (
             <div className="truncate px-3 py-1 text-sm text-[var(--muted)]" title={email ?? undefined}>
               {email}
             </div>
@@ -156,7 +156,7 @@ export function UserMenu() {
               {section.note && <p className="px-3 py-1 text-xs text-[var(--muted)]">{section.note}</p>}
             </div>
           ))}
-          {(status === 'admin' || status === 'volunteer' || status === 'no-access') && (
+          {(status === 'admin' || status === 'volunteer' || status === 'no-access' || status === 'error') && (
             <button
               type="button"
               role="menuitem"
