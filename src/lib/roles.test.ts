@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { menuSections, roleFor, roleStatusFrom, showAdminAnalysis, type MyRole } from './roles'
+import { menuSections, nextRoleCheck, roleFor, roleStatusFrom, showAdminAnalysis, userChanged, type MyRole } from './roles'
 
 describe('roleStatusFrom', () => {
   it('maps session and role to a status', () => {
@@ -10,6 +10,47 @@ describe('roleStatusFrom', () => {
     expect(roleStatusFrom(true, { role: null, in_training: null, must_change_password: null })).toBe('no-access')
     expect(roleStatusFrom(true, { role: 'admin', in_training: false, must_change_password: false })).toBe('admin')
     expect(roleStatusFrom(true, { role: 'volunteer', in_training: true, must_change_password: true })).toBe('volunteer')
+  })
+})
+
+describe('roleStatusFrom error', () => {
+  it('maps a failed my_role answer to error, not no-access', () => {
+    expect(roleStatusFrom(true, 'error')).toBe('error')
+    expect(roleStatusFrom(false, 'error')).toBe('signed-out')
+  })
+})
+
+describe('nextRoleCheck', () => {
+  const vol: MyRole = { role: 'volunteer', in_training: false, must_change_password: false }
+  const adm: MyRole = { role: 'admin', in_training: false, must_change_password: false }
+  it('a successful answer replaces the previous one', () => {
+    expect(nextRoleCheck({ userId: 'u1', role: vol }, 'u1', { ok: true, role: adm })).toEqual({ userId: 'u1', role: adm })
+    expect(nextRoleCheck(null, 'u1', { ok: true, role: null })).toEqual({ userId: 'u1', role: null })
+  })
+  it('an error during a refresh for the same user keeps the previous answer', () => {
+    const prev = { userId: 'u1', role: vol }
+    expect(nextRoleCheck(prev, 'u1', { ok: false })).toBe(prev)
+  })
+  it('an error on first load (or after another user) is an error state', () => {
+    expect(nextRoleCheck(null, 'u1', { ok: false })).toEqual({ userId: 'u1', role: 'error' })
+    expect(nextRoleCheck({ userId: 'u0', role: vol }, 'u1', { ok: false })).toEqual({ userId: 'u1', role: 'error' })
+  })
+  it('a retry that succeeds replaces an error', () => {
+    expect(nextRoleCheck({ userId: 'u1', role: 'error' }, 'u1', { ok: true, role: vol })).toEqual({ userId: 'u1', role: vol })
+  })
+})
+
+describe('userChanged', () => {
+  it('is false for the first read and for the same user (token refresh)', () => {
+    expect(userChanged(undefined, null)).toBe(false)
+    expect(userChanged(undefined, 'u1')).toBe(false)
+    expect(userChanged('u1', 'u1')).toBe(false)
+    expect(userChanged(null, null)).toBe(false)
+  })
+  it('is true on sign-out, sign-in and switching users', () => {
+    expect(userChanged('u1', null)).toBe(true)
+    expect(userChanged(null, 'u2')).toBe(true)
+    expect(userChanged('u1', 'u2')).toBe(true)
   })
 })
 

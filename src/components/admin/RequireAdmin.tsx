@@ -13,6 +13,20 @@ export function RequireAdmin({ children, allowVolunteers = false }: { children: 
     return <div className="p-10 text-center text-[var(--muted)]">Loading…</div>
   }
 
+  if (status === 'error') {
+    return (
+      <div className="mx-auto flex max-w-sm flex-1 flex-col items-center gap-4 px-6 py-10 text-center">
+        <p className="text-[var(--foreground)]">Couldn't check your account. Try again.</p>
+        <button type="button" onClick={refreshRole} className={buttonClass}>
+          Try again
+        </button>
+        <button type="button" onClick={signOut} className={buttonClass}>
+          Sign out
+        </button>
+      </div>
+    )
+  }
+
   if (status === 'signed-out') {
     return (
       <div className="flex flex-1 items-center px-6 py-10">

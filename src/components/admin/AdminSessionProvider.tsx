@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { adminSupabase } from '@/lib/supabase/adminClient'
-import { roleFor, roleStatusFrom, type MyRole, type RoleCheck, type RoleStatus } from '@/lib/roles'
+import { nextRoleCheck, roleFor, roleStatusFrom, userChanged, type MyRole, type RoleCheck, type RoleStatus } from '@/lib/roles'
 import { AdminSessionContext, type AdminSession } from '@/hooks/useAdminSession'
 
 // Mounted once (App): owns the one auth subscription and the one my_role call that every
@@ -12,16 +13,22 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
   // Result of my_role, tagged with the user it was fetched for so a stale answer is never reused.
   const [roleCheck, setRoleCheck] = useState<RoleCheck | null>(null)
   const [refreshCount, setRefreshCount] = useState(0)
+  const queryClient = useQueryClient()
+  const lastUserId = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
     const { data } = adminSupabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user.id ?? null)
+      const next = session?.user.id ?? null
+      // Cached queries aren't keyed by user: drop them all when the user changes.
+      if (userChanged(lastUserId.current, next)) queryClient.clear()
+      lastUserId.current = next
+      setUserId(next)
       setEmail(session?.user.email ?? null)
       // Drop the cached answer on sign-out so the next sign-in re-checks the role.
       if (!session) setRoleCheck(null)
     })
     return () => data.subscription.unsubscribe()
-  }, [])
+  }, [queryClient])
 
   useEffect(() => {
     if (!userId) return
@@ -29,11 +36,12 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
     adminSupabase
       .rpc('my_role')
       .then(
-        ({ data, error }) => (error ? null : ((data as MyRole | null) ?? null)),
-        () => null,
+        ({ data, error }) =>
+          error ? ({ ok: false } as const) : ({ ok: true, role: (data as MyRole | null) ?? null } as const),
+        () => ({ ok: false }) as const,
       )
-      .then((role) => {
-        if (!cancelled) setRoleCheck({ userId, role })
+      .then((result) => {
+        if (!cancelled) setRoleCheck((prev) => nextRoleCheck(prev, userId, result))
       })
     return () => {
       cancelled = true
@@ -54,8 +62,9 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
 
   const myRole = roleFor(roleCheck, userId)
   const status: RoleStatus = userId === undefined ? 'loading' : roleStatusFrom(!!userId, myRole)
-  const inTraining = myRole?.in_training === true
-  const mustChangePassword = myRole?.must_change_password === true
+  const roleObj = myRole && myRole !== 'error' ? myRole : null
+  const inTraining = roleObj?.in_training === true
+  const mustChangePassword = roleObj?.must_change_password === true
   const value = useMemo<AdminSession>(
     () => ({ status, email, inTraining, mustChangePassword, signIn, signOut, refreshRole }),
     [status, email, inTraining, mustChangePassword, signIn, signOut, refreshRole],
