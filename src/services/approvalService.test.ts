@@ -54,6 +54,12 @@ describe('decisions', () => {
     })
   })
 
+  it('omits p_seen_updated_at when several ids are approved (server allows one item with a seen value)', async () => {
+    rpc.mockResolvedValue({ data: { approved: 2 }, error: null })
+    await approve('fix', [1, 2], true, '2026-11-23T10:00:00.123456+00:00')
+    expect(rpc).toHaveBeenCalledWith('approve_fix_review', { p_ids: [1, 2], p_force: true })
+  })
+
   it('ignores seenUpdatedAt when not forcing', async () => {
     rpc.mockResolvedValue({ data: { approved: 1 }, error: null })
     await approve('fix', [1], false, 'x')

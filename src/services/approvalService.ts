@@ -93,7 +93,8 @@ export async function approve(
       ? await adminSupabase.rpc('approve_fix_review', {
           p_ids: ids,
           p_force: force,
-          ...(force && seenUpdatedAt ? { p_seen_updated_at: seenUpdatedAt } : {}),
+          // The server accepts a seen value for one item at a time only.
+          ...(force && seenUpdatedAt && ids.length === 1 ? { p_seen_updated_at: seenUpdatedAt } : {}),
         })
       : await adminSupabase.rpc('approve_model_answer', { p_ids: ids })
   if (error) throw error

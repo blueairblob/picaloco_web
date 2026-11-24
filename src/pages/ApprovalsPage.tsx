@@ -61,13 +61,13 @@ export function ApprovalsPage() {
   }, [held.data])
   const all = held.data ?? []
 
-  // Runs one batch per kind. Each kind that succeeds is reported to onKindDone straight away, so a
-  // later kind throwing still leaves the earlier one cleared from the selection (and notes).
+  // Runs one batch per kind. Each kind that succeeds is cleared from the selection straight away;
+  // onAllDone runs only once every kind has succeeded.
   async function act(
     items: HeldItem[],
     verb: 'approved' | 'rejected',
     run: (kind: 'fix' | 'answer', ids: number[]) => Promise<DecisionResult>,
-    onKindDone?: () => void,
+    onAllDone?: () => void,
   ): Promise<boolean> {
     if (items.length === 0) return false
     setBusy(true)
@@ -84,8 +84,8 @@ export function ApprovalsPage() {
         total.stale.push(...r.stale)
         total.skipped.push(...r.skipped)
         setSelected((s) => removeKeys(s, batch.map(keyOf)))
-        onKindDone?.()
       }
+      onAllDone?.()
       setSummary(summaryLine(total, verb))
       setError(null)
       ok = true
@@ -103,7 +103,7 @@ export function ApprovalsPage() {
     act(items, 'approved', (k, ids) =>
       approve(k, ids, force, force ? items.find((i) => i.kind === k)?.current_updated_at : undefined),
     )
-  // The note is sent once: it is cleared once its batch went through, but only if it is still the text
+  // The note is sent with every kind's batch and cleared only once all of them went through, but only if it is still the text
   // that was sent, so anything typed during the request survives.
   async function doReject(items: HeldItem[], userId: string) {
     const sent = notes[userId]
