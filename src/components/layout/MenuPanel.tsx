@@ -29,9 +29,24 @@ export function MenuPanel({
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Settings sits on top of the panel; Escape and the focus trap belong to whichever is on top.
   const settingsButton = useRef<HTMLButtonElement>(null)
-  const ref = useModalDialog(open && !settingsOpen, onClose, returnFocusTo)
+  // Focus hand-off between the panel and Settings (read by the panel's hook when it re-runs).
+  const settingsActive = useRef(false)
+  const settingsJustClosed = useRef(false)
+  const ref = useModalDialog(open && !settingsOpen, onClose, returnFocusTo, {
+    initialFocus: () => {
+      if (!settingsJustClosed.current) return null
+      settingsJustClosed.current = false
+      return settingsButton.current
+    },
+    restoreFocus: () => !settingsActive.current,
+  })
+  useEffect(() => {
+    if (!open) settingsActive.current = false // panel closed while Settings was up
+  }, [open])
   // Closing the panel by any route (Menu button, back, backdrop) forgets Settings.
-  if (!open && settingsOpen) setSettingsOpen(false)
+  if (!open && settingsOpen) {
+    setSettingsOpen(false)
+  }
   // Same key as the Volunteers page, so the count and that page share one fetch.
   const people = useQuery({ queryKey: ['people'], queryFn: listPeople, enabled: status === 'admin' })
   const heldTotal = (people.data ?? []).reduce((n, p) => n + p.held_count, 0)
@@ -92,7 +107,10 @@ export function MenuPanel({
             ))}
 
             <div className="my-2 border-t border-[var(--border)]" role="separator" />
-            <button ref={settingsButton} type="button" onClick={() => setSettingsOpen(true)} className={item}>
+            <button ref={settingsButton} type="button" onClick={() => {
+                settingsActive.current = true
+                setSettingsOpen(true)
+              }} className={item}>
               Settings
             </button>
 
@@ -118,7 +136,12 @@ export function MenuPanel({
           </div>
         </div>
       )}
-      <SettingsDialog open={open && settingsOpen} onClose={() => setSettingsOpen(false)} returnFocusTo={settingsButton} />
+      <SettingsDialog open={open && settingsOpen} onClose={() => {
+          settingsActive.current = false
+          settingsJustClosed.current = true
+          setSettingsOpen(false)
+        }}
+        returnFocusTo={settingsButton} />
     </>,
     document.body,
   )

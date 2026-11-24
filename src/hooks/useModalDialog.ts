@@ -13,13 +13,21 @@ export function useModalDialog(
   open: boolean,
   onClose: () => void,
   returnFocusTo?: RefObject<HTMLElement | null>,
+  focus?: {
+    // Element to focus on open instead of the first one (null falls back to the first).
+    initialFocus?: () => HTMLElement | null
+    // Return false to skip restoring focus on cleanup (another dialog is taking over).
+    restoreFocus?: () => boolean
+  },
 ) {
   const ref = useRef<HTMLDivElement | null>(null)
   const onCloseRef = useRef(onClose)
   const returnRef = useRef(returnFocusTo)
+  const focusRef = useRef(focus)
   useEffect(() => {
     onCloseRef.current = onClose
     returnRef.current = returnFocusTo
+    focusRef.current = focus
   })
 
   useEffect(() => {
@@ -28,7 +36,7 @@ export function useModalDialog(
     const opener = document.activeElement as HTMLElement | null
     const returnTo = returnRef.current
     const items = () => Array.from(node?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
-    ;(items()[0] ?? node)?.focus()
+    ;(focusRef.current?.initialFocus?.() ?? items()[0] ?? node)?.focus()
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
