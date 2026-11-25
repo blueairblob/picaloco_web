@@ -12,6 +12,7 @@ import {
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { shouldToggleSidebar } from "@/lib/sidebarKeys"
+import { SIDEBAR_COOKIE } from "@/lib/sidebarCookie"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -25,8 +26,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip"
 import { PanelLeftIcon } from "lucide-react"
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state"
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+// Read back in App (src/lib/sidebarCookie.ts); kept a year so the state lasts across visits.
+const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
@@ -87,7 +88,7 @@ function SidebarProvider({
 
       // This sets the cookie to keep the sidebar state (blocked cookies just forget it).
       try {
-        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+        document.cookie = `${SIDEBAR_COOKIE}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
       } catch {
         // ignore
       }
@@ -110,9 +111,11 @@ function SidebarProvider({
           key: event.key,
           ctrlKey: event.ctrlKey,
           metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
           target: el,
-          // Only the site's own dialogs (Settings) set aria-modal; react-aria's sheet does not.
-          modalOpen: !!document.querySelector('[aria-modal="true"]'),
+          // Settings (aria-modal) or a page's Help (<dialog>.showModal()); react-aria's sheet
+          // sets neither, so Ctrl/Cmd+B still closes it.
+          modalOpen: !!document.querySelector('[aria-modal="true"], dialog[open]'),
         })
       ) {
         event.preventDefault()
@@ -213,8 +216,8 @@ function Sidebar({
         {...props}
       >
         <SheetHeader className="sr-only">
-          <SheetTitle>Sidebar</SheetTitle>
-          <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+          <SheetTitle>Menu</SheetTitle>
+          <SheetDescription>Site navigation</SheetDescription>
         </SheetHeader>
         <div className="flex h-full w-full flex-col">{children}</div>
       </Sheet>

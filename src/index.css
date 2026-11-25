@@ -194,7 +194,8 @@ body {
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: color-mix(in srgb, var(--surface) 94%, var(--foreground));
+  /* The site's --muted is a TEXT colour; this is a surface tint, so don't use text-muted/bg-muted for text. */
+  --color-muted: var(--secondary);
   --color-muted-foreground: var(--muted-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);

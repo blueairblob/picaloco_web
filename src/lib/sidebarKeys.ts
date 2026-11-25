@@ -4,10 +4,12 @@ export function shouldToggleSidebar(e: {
   key: string
   ctrlKey: boolean
   metaKey: boolean
+  shiftKey: boolean
   target: { tagName: string; isContentEditable: boolean } | null
   modalOpen: boolean
 }): boolean {
-  if (e.key !== 'b' || !(e.ctrlKey || e.metaKey)) return false
+  // 'B' with Caps Lock counts; Shift+B does not.
+  if (e.key.toLowerCase() !== 'b' || e.shiftKey || !(e.ctrlKey || e.metaKey)) return false
   if (e.modalOpen) return false
   const t = e.target
   if (t && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable)) return false

@@ -3,7 +3,7 @@ import { shouldToggleSidebar } from './sidebarKeys'
 
 const button = { tagName: 'BUTTON', isContentEditable: false }
 const press = (over: Partial<Parameters<typeof shouldToggleSidebar>[0]> = {}) =>
-  shouldToggleSidebar({ key: 'b', ctrlKey: true, metaKey: false, target: button, modalOpen: false, ...over })
+  shouldToggleSidebar({ key: 'b', ctrlKey: true, metaKey: false, shiftKey: false, target: button, modalOpen: false, ...over })
 
 describe('shouldToggleSidebar', () => {
   it('toggles on Ctrl+B or Cmd+B from a button, a link or the page', () => {
@@ -11,6 +11,10 @@ describe('shouldToggleSidebar', () => {
     expect(press({ ctrlKey: false, metaKey: true })).toBe(true)
     expect(press({ target: { tagName: 'A', isContentEditable: false } })).toBe(true)
     expect(press({ target: null })).toBe(true)
+  })
+  it('counts B with Caps Lock but not Shift+B', () => {
+    expect(press({ key: 'B' })).toBe(true)
+    expect(press({ key: 'B', shiftKey: true })).toBe(false)
   })
   it('ignores B without Ctrl or Cmd, and other keys', () => {
     expect(press({ ctrlKey: false })).toBe(false)
