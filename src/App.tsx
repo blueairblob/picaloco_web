@@ -41,6 +41,7 @@ export function App() {
           <AppSidebar />
           <SidebarInset>
             <Header />
+            <main className="flex flex-1 flex-col">
             <Routes>
               <Route path="/" element={<SearchPage />} />
               <Route path="/photo/:imageNo" element={<PhotoDetailPage />} />
@@ -54,6 +55,7 @@ export function App() {
               <Route path="/admin/model-check/:taskId" element={<RequireAdmin allowVolunteers><ModelCheckQueuePage /></RequireAdmin>} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
+            </main>
           </SidebarInset>
         </SidebarProvider>
       </RouterProvider>

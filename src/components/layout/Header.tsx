@@ -10,6 +10,8 @@ export function Header() {
         <TooltipTrigger delay={500}>
           <SidebarTrigger
             aria-label="Menu (Ctrl/Cmd+B)"
+            // Desktop: the sidebar element is always mounted. Phone: only while the sheet is open.
+            aria-controls={isMobile && !openMobile ? undefined : 'app-sidebar'}
             aria-expanded={isMobile ? openMobile : open}
             className="size-11 rounded-full border border-[var(--border)] text-[var(--foreground)] hover:border-[var(--accent)] hover:text-[var(--accent)] [&_svg:not([class*='size-'])]:size-5"
           />

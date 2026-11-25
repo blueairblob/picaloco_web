@@ -78,7 +78,7 @@ export function AppSidebar() {
 
   return (
     // A closed wide-screen sidebar is only moved off screen: inert keeps Tab out of it.
-    <Sidebar collapsible="offcanvas" inert={!isMobile && state === 'collapsed'}>
+    <Sidebar id="app-sidebar" collapsible="offcanvas" inert={!isMobile && state === 'collapsed'}>
       <SidebarHeader>
         <div className="px-2 py-1 text-base font-semibold tracking-tight">RAT Photo Archive</div>
       </SidebarHeader>
