@@ -11,6 +11,7 @@ import {
 } from "react-aria-components"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { shouldToggleSidebar } from "@/lib/sidebarKeys"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -29,7 +30,6 @@ const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
-const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -101,26 +101,27 @@ function SidebarProvider({
   }, [isMobile, setOpen, setOpenMobile])
 
   // Adds a keyboard shortcut to toggle the sidebar.
+  // Capture phase: a focused react-aria control (the trigger) can stop keydown before it bubbles.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Never while typing: Ctrl/Cmd+B in a text box belongs to the text box.
       const el = event.target instanceof HTMLElement ? event.target : null
-      const typing =
-        !!el &&
-        (["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) ||
-          el.isContentEditable)
       if (
-        !typing &&
-        event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
-        (event.metaKey || event.ctrlKey)
+        shouldToggleSidebar({
+          key: event.key,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          target: el,
+          // Only the site's own dialogs (Settings) set aria-modal; react-aria's sheet does not.
+          modalOpen: !!document.querySelector('[aria-modal="true"]'),
+        })
       ) {
         event.preventDefault()
         toggleSidebar()
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
   }, [toggleSidebar])
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
