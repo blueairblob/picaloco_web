@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -25,6 +25,11 @@ import { footerAccount } from '@/lib/sidebarFooter'
 import { listPeople } from '@/services/volunteerService'
 import { SettingsDialog } from './SettingsDialog'
 
+// The header's trigger: where focus goes when the sidebar it was in closes or its button goes away.
+function focusTrigger() {
+  document.querySelector<HTMLElement>('[data-sidebar="trigger"]')?.focus()
+}
+
 export function AppSidebar() {
   const { pathname, key } = useLocation()
   const { status, email, inTraining, signOut } = useAdminSession()
@@ -40,6 +45,23 @@ export function AppSidebar() {
   useEffect(() => {
     setOpenMobile(false)
   }, [key, setOpenMobile])
+
+  // Wide screens: collapsing (Ctrl/Cmd+B or the trigger) while focus is inside would drop it to
+  // <body> once the sidebar goes inert, so hand it to the trigger. focusin tracks the last focus,
+  // since the browser may already have blurred it by the time this runs.
+  const focusInside = useRef(false)
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      focusInside.current = e.target instanceof Element && !!e.target.closest('[data-slot="sidebar"]')
+    }
+    document.addEventListener('focusin', onFocusIn)
+    return () => document.removeEventListener('focusin', onFocusIn)
+  }, [])
+  useLayoutEffect(() => {
+    if (isMobile || state !== 'collapsed' || !focusInside.current) return
+    const active = document.activeElement
+    if (!active || active === document.body || active.closest('[data-slot="sidebar"]')) focusTrigger()
+  }, [isMobile, state])
 
   // On phones Settings lives inside the sheet, so closing the sheet by any route forgets it.
   if (isMobile && !openMobile && settingsOpen) {
@@ -65,7 +87,11 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton href="/" isActive={isCurrent('/', pathname)}>
+              <SidebarMenuButton
+                href="/"
+                isActive={isCurrent('/', pathname)}
+                aria-current={isCurrent('/', pathname) ? 'page' : undefined}
+              >
                 <SearchIcon aria-hidden="true" />
                 <span>Search the archive</span>
               </SidebarMenuButton>
@@ -136,7 +162,10 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onPress={() => {
-                    setOpenMobile(false)
+                    // Phones: closing the sheet returns focus to the trigger. Wide screens: this
+                    // button goes away once signed out, so focus moves there first.
+                    if (isMobile) setOpenMobile(false)
+                    else focusTrigger()
                     void signOut()
                   }}
                 >
