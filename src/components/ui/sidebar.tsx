@@ -42,8 +42,8 @@ type SidebarContextProps = {
 }
 
 type SidebarButtonProps =
-  | (LinkProps & { href: string })
-  | (ButtonProps & { href?: never })
+  | (LinkProps & { href: string } & React.RefAttributes<HTMLAnchorElement>)
+  | (ButtonProps & { href?: never } & React.RefAttributes<HTMLButtonElement>)
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 
@@ -85,8 +85,12 @@ function SidebarProvider({
         _setOpen(openState)
       }
 
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      // This sets the cookie to keep the sidebar state (blocked cookies just forget it).
+      try {
+        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      } catch {
+        // ignore
+      }
     },
     [setOpenProp, open]
   )
@@ -99,7 +103,14 @@ function SidebarProvider({
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Never while typing: Ctrl/Cmd+B in a text box belongs to the text box.
+      const el = event.target instanceof HTMLElement ? event.target : null
+      const typing =
+        !!el &&
+        (["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) ||
+          el.isContentEditable)
       if (
+        !typing &&
         event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
         (event.metaKey || event.ctrlKey)
       ) {

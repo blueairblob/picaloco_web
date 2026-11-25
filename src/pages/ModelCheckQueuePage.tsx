@@ -253,9 +253,10 @@ function CheckQueue({
     if (e.isComposing || e.defaultPrevented) return
     if (finishedRef.current) return // the finish screen has only its own buttons
     if (document.querySelector('dialog[open]')) return // Keys help is open: its keys are its own
-    if (document.querySelector('[aria-modal="true"]')) return // the menu or Settings is open
+    if (document.querySelector('[aria-modal="true"]')) return // Settings is open
     const el = e.target instanceof HTMLElement ? e.target : null
     if (el?.closest('[aria-modal="true"]')) return
+    if (el?.closest('[data-slot="sidebar"]')) return // keys typed in the sidebar or its phone sheet
     if (e.key === 'Enter' && ownsEnter(el)) return
     const action = checkShortcut(
       e.key,

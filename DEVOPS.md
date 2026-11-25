@@ -641,8 +641,9 @@ already set on Vercel). The caller's own token is checked as admin first. Email 
   requires reauthentication for password changes. **Check this on the first live run** (huey's auth
   settings); if it does, the first-sign-in form must call `set_password`.
 
-**Pages** (admin only, under the menu's "People"): `/admin/volunteers`, `/admin/approvals`,
-`/admin/changes`.
+**Pages** (admin only, under the sidebar's "People"): `/admin/volunteers`, `/admin/approvals`,
+`/admin/changes`. The sidebar opens and closes with the header's sidebar button or Ctrl/Cmd+B;
+Settings and the account sit at its foot.
 
 **Held work.** With `in_training` on, saves go to `rat.pending_fix_review` /
 `rat.pending_model_answer` and don't count. Approve replays the save through the normal path,

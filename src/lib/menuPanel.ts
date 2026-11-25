@@ -1,7 +1,3 @@
-export function shouldCloseOnRoute(prevPath: string, nextPath: string): boolean {
-  return prevPath !== nextPath
-}
-
 const norm = (p: string) => p.replace(/\/+$/, '') || '/'
 
 // Exact match, or a nested page under the item (never a look-alike prefix such as /admin/fixesx).

@@ -531,6 +531,7 @@ function ReviewQueue({
     if (e.altKey || e.isComposing || e.defaultPrevented) return
     if (document.querySelector('dialog[open]')) return // Help is open: its keys are its own
     const el = e.target instanceof HTMLElement ? e.target : null
+    if (el?.closest('[data-slot="sidebar"]')) return // keys typed in the sidebar or its phone sheet
     const inEditBox = !!el && el.dataset.reviewEdit !== undefined
     const target = keyTarget(el)
     if (isTypingTarget(target) && !inEditBox) return // filter fields and other inputs keep their keys
