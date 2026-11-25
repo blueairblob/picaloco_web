@@ -148,7 +148,7 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton href="/admin/fixes">
                 <LogInIcon aria-hidden="true" />
-                <span>Sign in (admin)</span>
+                <span>Sign in</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}

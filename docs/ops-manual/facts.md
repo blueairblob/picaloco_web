@@ -53,7 +53,7 @@ A photo number that doesn't exist returns no search row and HTTP 400 for the pho
 
 ## Who sees what (Part 1, step 4)
 
-Navigation is a sidebar on the left (Search the archive, Archive workflow, People), opened and closed with the sidebar button in the header or Ctrl/Cmd+B; it remembers whether it was open, and on a phone it slides over the page. Settings (text size and theme) and the account (email and Sign out, or Sign in (admin)) sit at its foot. After Sign in (admin):
+Navigation is a sidebar on the left (Search the archive, Archive workflow, People), opened and closed with the sidebar button in the header or Ctrl/Cmd+B; it remembers whether it was open, and on a phone it slides over the page. Settings (text size and theme) and the account (email and Sign out, or Sign in) sit at its foot. After signing in:
 - Admins see Data Fixes, then Model check, plus People: Volunteers (add, reset password, training on/off, remove access), Approvals (held trainee work) and Changes (list of changes, with undo).
 - AI volunteers see only Data fixes and Model check. A new volunteer must set their own password at first sign-in. While "in training" is on, their saves wait on Approvals.
 - Migration status (`/admin`) needs no sign-in; the FileMaker GUI's "Open Admin Dashboard" links to it.

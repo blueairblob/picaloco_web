@@ -27,7 +27,7 @@ export function SignInForm({ onSignIn }: { onSignIn: (email: string, password: s
       onSubmit={handleSubmit}
       className="mx-auto flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6"
     >
-      <h1 className="text-xl font-semibold text-[var(--foreground)]">Admin sign in</h1>
+      <h1 className="text-xl font-semibold text-[var(--foreground)]">Sign in</h1>
       <label className="flex flex-col gap-1 text-sm text-[var(--muted)]">
         Email
         <input
